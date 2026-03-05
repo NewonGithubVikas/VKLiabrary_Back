@@ -1,9 +1,11 @@
+// controllers/memberController.js
 const Member = require('../models/Member');
 const Billing = require('../models/Billing');
 const Plan = require('../models/Plan');
 const { isValidObjectId } = require('mongoose');
+const multer = require('multer');
+const uploadMemberImages = require('../middlewares/upload');
 
-// Helper to get rootAdminId from authenticated user
 const getRootAdminId = (user) => {
   return user.role === 'admin' ? user._id : user.adminId;
 };
@@ -11,106 +13,146 @@ const getRootAdminId = (user) => {
 exports.addMember = async (req, res) => {
   try {
     const user = req.user;
-    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+    if (!user) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const rootAdminId = getRootAdminId(user);
 
-    const {
-      memberId,
-      name, mobile, email, address, gender, dob, fatherName, uniqueId,
-      institute, course, homePhone, batchStart, batchEnd, remarks,
-      plan, planAmount, startDate, expiryDate, paymentMethod,
-      paidAmount = 0, enrollmentFee = 0, taxAmount = 0, dueAmount = 0,
-      ...rest
-    } = req.body;
-
-    if (!memberId || !/^MEM-\d{4}$/.test(memberId)) {
-      return res.status(400).json({ message: 'Invalid memberId format (use MEM-XXXX)' });
-    }
-
-    const member = new Member({
-      memberId,
-      name: name?.trim(),
-      mobile: mobile?.trim(),
-      email: email?.trim(),
-      address: address?.trim(),
-      gender,
-      dob: dob ? new Date(dob) : undefined,
-      fatherName: fatherName?.trim(),
-      uniqueId: uniqueId?.trim(),
-      institute: institute?.trim(),
-      course: course?.trim(),
-      homePhone: homePhone?.trim(),
-      batchStart,
-      batchEnd,
-      remarks: remarks?.trim(),
-
-      currentPlan: plan || undefined,
-      planStartDate: startDate ? new Date(startDate) : undefined,
-      planExpiryDate: expiryDate ? new Date(expiryDate) : undefined,
-      membershipStatus: paidAmount > 0 ? 'active' : 'pending',
-
-      lastPlanAmount: planAmount ? Number(planAmount) : undefined,
-      lastEnrollmentFee: enrollmentFee ? Number(enrollmentFee) : undefined,
-      lastPaidAmount: paidAmount ? Number(paidAmount) : undefined,
-      lastDueAmount: dueAmount ? Number(dueAmount) : undefined,
-
-      createdBy: user._id,
-      rootAdmin: rootAdminId,
-
-      ...rest,
-    });
-
-    await member.save();
-
-    let billing = null;
-    if (plan && isValidObjectId(plan) && startDate) {
-      const planDoc = await Plan.findOne({ _id: plan, rootAdmin: rootAdminId });
-      if (planDoc) {
-        billing = new Billing({
-          member: member._id,
-          plan,
-          startDate: new Date(startDate),
-          endDate: expiryDate ? new Date(expiryDate) : undefined,
-          paymentMethod: paymentMethod || 'cash',
-          paidAmount: Number(paidAmount) || 0,
-          enrollmentFee: Number(enrollmentFee) || 0,
-          taxAmount: Number(taxAmount) || 0,
-          dueAmount: Number(dueAmount) || 0,
-          status: Number(dueAmount) > 0 ? (Number(paidAmount) > 0 ? 'partial' : 'pending') : 'paid',
-          billDate: new Date(),
-
-          createdBy: user._id,
-          rootAdmin: rootAdminId,
-        });
-
-        await billing.save();
-      } else {
-        console.warn(`Plan ${plan} not found or unauthorized for new member ${member._id}`);
+    // Handle file uploads with Cloudinary
+    uploadMemberImages(req, res, async (err) => {
+      if (err instanceof multer.MulterError) {
+        return res.status(400).json({ success: false, message: err.message });
+      } else if (err) {
+        console.error('Multer/Cloudinary error:', err);
+        return res.status(400).json({ success: false, message: err.message || 'File upload error' });
       }
-    }
 
-    const populated = await Member.findById(member._id).populate('currentPlan');
+      // Extract text fields
+      const {
+        memberId,
+        name,
+        mobile,
+        email,
+        address,
+        gender,
+        dob,
+        fatherName,
+        uniqueId,
+        institute,
+        course,
+        homePhone,
+        batchStart,
+        batchEnd,
+        remarks,
+        plan,
+        planAmount,
+        startDate,
+        expiryDate,
+        paymentMethod,
+        paidAmount = 0,
+        enrollmentFee = 0,
+        taxAmount = 0,
+        dueAmount = 0,
+      } = req.body;
 
-    res.status(201).json({
-      success: true,
-      member: populated,
-      billingCreated: !!billing,
+      // Validation
+      if (!memberId || !/^MEM-\d{4}$/.test(memberId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid memberId format. Use MEM-XXXX (e.g. MEM-0001)'
+        });
+      }
+
+      // Get Cloudinary secure URLs
+      let profilePhoto = null;
+      if (req.files?.profilePhoto?.[0]) {
+        profilePhoto = req.files.profilePhoto[0].path; // Cloudinary secure URL
+      }
+
+      const additionalPhotos = [];
+      if (req.files?.additionalPhotos) {
+        req.files.additionalPhotos.forEach(file => {
+          additionalPhotos.push(file.path); // Cloudinary secure URL
+        });
+      }
+
+      // Create member
+      const member = new Member({
+        memberId,
+        name: name?.trim(),
+        mobile: mobile?.trim(),
+        email: email?.trim()?.toLowerCase(),
+        address: address?.trim(),
+        gender,
+        dob: dob ? new Date(dob) : undefined,
+        fatherName: fatherName?.trim(),
+        uniqueId: uniqueId?.trim(),
+        institute: institute?.trim(),
+        course: course?.trim(),
+        homePhone: homePhone?.trim(),
+        batchStart,
+        batchEnd,
+        remarks: remarks?.trim(),
+
+        // Cloudinary URLs
+        profilePhoto,
+        additionalPhotos,
+
+        currentPlan: plan || undefined,
+        planStartDate: startDate ? new Date(startDate) : undefined,
+        planExpiryDate: expiryDate ? new Date(expiryDate) : undefined,
+        membershipStatus: Number(paidAmount) > 0 ? 'active' : 'pending',
+
+        lastPlanAmount: planAmount ? Number(planAmount) : undefined,
+        lastEnrollmentFee: enrollmentFee ? Number(enrollmentFee) : undefined,
+        lastPaidAmount: paidAmount ? Number(paidAmount) : undefined,
+        lastDueAmount: dueAmount ? Number(dueAmount) : undefined,
+
+        createdBy: user._id,
+        rootAdmin: rootAdminId,
+      });
+
+      await member.save();
+
+      // Billing logic (unchanged)
+      let billing = null;
+      if (plan && isValidObjectId(plan) && startDate) {
+        const planDoc = await Plan.findOne({ _id: plan, rootAdmin: rootAdminId });
+        if (planDoc) {
+          billing = new Billing({
+            member: member._id,
+            plan,
+            startDate: new Date(startDate),
+            endDate: expiryDate ? new Date(expiryDate) : undefined,
+            paymentMethod: paymentMethod || 'cash',
+            paidAmount: Number(paidAmount) || 0,
+            enrollmentFee: Number(enrollmentFee) || 0,
+            taxAmount: Number(taxAmount) || 0,
+            dueAmount: Number(dueAmount) || 0,
+            status: Number(dueAmount) > 0 ? (Number(paidAmount) > 0 ? 'partial' : 'pending') : 'paid',
+            billDate: new Date(),
+            createdBy: user._id,
+            rootAdmin: rootAdminId,
+          });
+          await billing.save();
+        }
+      }
+
+      const populated = await Member.findById(member._id).populate('currentPlan');
+
+      res.status(201).json({
+        success: true,
+        message: 'Member added successfully',
+        member: populated,
+        billingCreated: !!billing,
+      });
     });
   } catch (err) {
-    if (err.name === 'ValidationError') {
-      const errors = Object.values(err.errors).map(e => e.message).join(', ');
-      return res.status(400).json({ message: `Validation failed: ${errors}` });
-    }
-
-    if (err.code === 11000) {
-      return res.status(400).json({
-        message: 'This Member ID is already in use for this admin'
-      });
-    }
-
     console.error('Add Member Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message,
+    });
   }
 };
 
@@ -141,21 +183,21 @@ exports.freezeMember = async (req, res) => {
     const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId });
     if (!member) return res.status(404).json({ message: 'Member not found' });
 
-    // 2. Corner case: Already frozen?
+    // 2. Already frozen?
     if (member.status === 'freeze') {
       return res.status(400).json({ message: 'Member is already frozen. Please unfreeze first.' });
     }
 
-    // 3. Corner case: No active plan/expiry?
+    // 3. No active plan/expiry?
     if (!member.planExpiryDate) {
       return res.status(400).json({ message: 'Member has no active plan to freeze' });
     }
 
-    // 4. Set current freeze state
+    // 4. Set freeze state
     member.freezeStartDate = startDate;
     member.status = 'freeze';
 
-    // 5. Add to history (endDate/days/unfrozenBy will be filled on unfreeze)
+    // 5. Add to history
     member.freezeHistory.push({
       startDate,
       appliedBy: user._id,
@@ -178,7 +220,6 @@ exports.freezeMember = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
 // ──────────────────────────────────────────────
 // UNFREEZE MEMBER – Calculate frozen days & extend expiry
 // ──────────────────────────────────────────────
@@ -499,3 +540,186 @@ exports.getNextMemberId = async (req, res) => {
     });
   }
 };
+// ──────────────────────────────────────────────
+// GET MEMBERS WITH DUE AMOUNT (> 0)
+// controllers/memberController.js (or wherever you keep it)
+// ──────────────────────────────────────────────
+// GET MEMBERS WITH OUTSTANDING DUES + THEIR UNPAID BILLINGS
+// ──────────────────────────────────────────────
+exports.getDueMembers = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const rootAdminId = getRootAdminId(user);
+
+    // Step 1: Find members who have any billing with dueAmount > 0
+    const dueBillings = await Billing.find({
+      rootAdmin: rootAdminId,
+      dueAmount: { $gt: 0 },
+      status: { $in: ['pending', 'partial', 'overdue'] },
+    })
+      .populate({
+        path: 'member',
+        select: 'memberId name mobile status lastDueAmount',
+      })
+      .populate({
+        path: 'plan',
+        select: 'name amount duration',
+      })
+      .sort({ dueAmount: -1, billDate: -1 })
+      .lean();
+
+    // Step 2: Group billings by member (so frontend gets clean structure)
+    const membersMap = new Map();
+
+    dueBillings.forEach((billing) => {
+      const member = billing.member;
+      if (!member) return; // skip if member not found
+
+      const memberId = member._id.toString();
+
+      if (!membersMap.has(memberId)) {
+        membersMap.set(memberId, {
+          _id: member._id,
+          memberId: member.memberId,
+          name: member.name,
+          mobile: member.mobile,
+          status: member.status,
+          totalDue: 0,
+          billings: [],
+        });
+      }
+
+      const memberEntry = membersMap.get(memberId);
+
+      memberEntry.billings.push({
+        _id: billing._id,
+        planName: billing.plan?.name || 'Unknown Plan',
+        dueAmount: billing.dueAmount,
+        paidAmount: billing.paidAmount,
+        billDate: billing.billDate,
+        status: billing.status,
+        remarks: billing.remarks || '',
+      });
+
+      memberEntry.totalDue += billing.dueAmount;
+    });
+
+    // Step 3: Convert map to array + sort by total due descending
+    const dueMembers = Array.from(membersMap.values())
+      .sort((a, b) => b.totalDue - a.totalDue);
+
+    // Step 4: Update each member's lastDueAmount (optional, for consistency)
+    for (const member of dueMembers) {
+      await Member.findByIdAndUpdate(
+        member._id,
+        { lastDueAmount: member.totalDue },
+        { new: true }
+      );
+    }
+
+    res.json({
+      success: true,
+      count: dueMembers.length,
+      totalOutstanding: dueMembers.reduce((sum, m) => sum + m.totalDue, 0),
+      members: dueMembers,
+    });
+  } catch (err) {
+    console.error('Get Due Members Error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+exports.stats = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Helper: get date range for expiring members
+    const getExpiringRange = (startDays, endDays) => {
+      const start = new Date(today);
+      start.setDate(today.getDate() + startDays);
+      const end = new Date(today);
+      end.setDate(today.getDate() + endDays);
+      return { $gte: start, $lte: end };
+    };
+
+    const stats = await Promise.all([
+      // Total members
+      Member.countDocuments(),
+
+      // Live (active) - planExpiryDate >= today
+      Member.countDocuments({
+        planExpiryDate: { $gte: today },
+        status: { $nin: ['blocked', 'left', 'freeze'] }, // adjust status values as per your schema
+      }),
+
+      // Expired - planExpiryDate < today
+      Member.countDocuments({
+        planExpiryDate: { $lt: today },
+        status: { $nin: ['blocked', 'left', 'freeze'] },
+      }),
+
+      // Expiring 1-3 days
+      Member.countDocuments({
+        planExpiryDate: getExpiringRange(1, 3),
+        status: { $nin: ['blocked', 'left', 'freeze'] },
+      }),
+
+      // Expiring 4-7 days
+      Member.countDocuments({
+        planExpiryDate: getExpiringRange(4, 7),
+        status: { $nin: ['blocked', 'left', 'freeze'] },
+      }),
+
+      // Expiring 8-15 days
+      Member.countDocuments({
+        planExpiryDate: getExpiringRange(8, 15),
+        status: { $nin: ['blocked', 'left', 'freeze'] },
+      }),
+
+      // Blocked
+      Member.countDocuments({ status: 'blocked' }),
+
+      // Left
+      Member.countDocuments({ status: 'left' }),
+
+      // Freeze
+      Member.countDocuments({ status: 'freeze' }),
+    ]);
+
+    const [
+      total,
+      live,
+      expired,
+      expiring1to3,
+      expiring4to7,
+      expiring8to15,
+      blocked,
+      left,
+      freeze,
+    ] = stats;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        total,
+        live,
+        expired,
+        expiring_1_to_3: expiring1to3,
+        expiring_4_to_7: expiring4to7,
+        expiring_8_to_15: expiring8to15,
+        blocked,
+        left,
+        freeze,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching member stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch member statistics',
+      error: error.message,
+    });
+  }
+}

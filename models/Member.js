@@ -51,6 +51,15 @@ const memberSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   rootAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
+  profilePhoto: {
+    type: String,
+    default: null, // e.g. "/uploads/members/profile-123456789.jpg"
+  },
+
+  additionalPhotos: [{
+    type: String, // array of URLs
+  }],
+
   // ──────────────────────────────────────────────
   // FREEZE FEATURE – Open-ended freeze until unfreeze
   // ──────────────────────────────────────────────

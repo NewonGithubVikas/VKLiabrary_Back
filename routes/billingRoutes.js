@@ -6,6 +6,8 @@ const {
   getBillings,
   getBillingById,
   getMemberBillHistory,
+  totalDue,
+  repayDueAmount, // ← NEW
 } = require('../controllers/billingController');
 
 const router = express.Router();
@@ -13,8 +15,12 @@ const router = express.Router();
 router.use(auth);
 
 router.post('/', createBilling);
-router.get('/', getBillings);                    // all + ?member= & ?plan=
+router.get('/', getBillings);
 router.get('/:id', getBillingById);
-router.get('/member/:memberId', getMemberBillHistory); // past bills for one member
+router.get('/member/:memberId', getMemberBillHistory);
+router.get('/due', totalDue);
+
+// NEW repayment route
+router.put('/:id/repay', repayDueAmount);
 
 module.exports = router;

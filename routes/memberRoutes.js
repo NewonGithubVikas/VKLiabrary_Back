@@ -12,11 +12,16 @@ const {
   markLeft,
   searchMembers,
   getMembersByCategory,
-  getNextMemberId,        // ← NEW
+  getNextMemberId,  
+  getDueMembers,      // ← NEW
+  stats,
 } = require('../controllers/memberController');
 
-const router = express.Router();
+const   router = express.Router();
+  
+router.get('/stats', auth,stats);
 
+router.get('/dueDetails', auth, getDueMembers);
 // Basic CRUD
 router.post('/', auth, addMember);
 router.get('/all', auth, getAllMembers);
@@ -34,5 +39,6 @@ router.put('/:id/left', auth, markLeft);
 // Search & Filtered categories
 router.get('/search', auth, searchMembers);
 router.get('/', auth, getMembersByCategory);
+
 
 module.exports = router;

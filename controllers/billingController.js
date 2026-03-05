@@ -197,3 +197,98 @@ exports.getMemberBillHistory = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+exports.totalDue = async (req, res) => {
+  try {
+    const user = req.user;
+    const rootAdminId = getRootAdminId(user);
+
+    const billing = await Billing.findOne({
+      _id: req.params.id,
+      rootAdmin: rootAdminId
+    }).select('dueAmount');
+
+    if (!billing) {
+      return res.status(404).json({ message: 'Billing not found' });
+    }
+
+    return res.json({
+      success: true,
+      dueAmount: billing.dueAmount,
+    });
+
+  } catch (error) {
+    console.error('Total Due Error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+// ──────────────────────────────────────────────
+// REPAY MEMBER DUE AMOUNT
+// ──────────────────────────────────────────────
+exports.repayDueAmount = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const rootAdminId = getRootAdminId(user);
+    const { id: billingId } = req.params; // billing record ID
+    const { amount, paymentMethod, remarks } = req.body;
+
+    // Validate input
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: 'Valid payment amount required' });
+    }
+    if (!['cash', 'upi', 'card', 'bank'].includes(paymentMethod)) {
+      return res.status(400).json({ message: 'Invalid payment method' });
+    }
+
+    // Find the billing record
+    const billing = await Billing.findOne({
+      _id: billingId,
+      rootAdmin: rootAdminId,
+    });
+
+    if (!billing) {
+      return res.status(404).json({ message: 'Billing record not found' });
+    }
+
+    if (billing.dueAmount <= 0) {
+      return res.status(400).json({ message: 'No due amount to repay' });
+    }
+
+    if (amount > billing.dueAmount) {
+      return res.status(400).json({ message: 'Payment amount cannot exceed due amount' });
+    }
+
+    // Update billing record
+    billing.paidAmount += Number(amount);
+    billing.dueAmount -= Number(amount);
+
+    // Update status
+    if (billing.dueAmount <= 0) {
+      billing.status = 'paid';
+    } else {
+      billing.status = 'partial';
+    }
+
+    billing.remarks = remarks ? `${billing.remarks ? billing.remarks + ' | ' : ''}${remarks}` : billing.remarks;
+    billing.paymentMethod = paymentMethod; // last payment method
+
+    await billing.save();
+
+    // Update member lastDueAmount
+    await Member.findByIdAndUpdate(
+      billing.member,
+      { $set: { lastDueAmount: billing.dueAmount } },
+      { new: true }
+    );
+
+    res.json({
+      success: true,
+      message: `₹${amount} repaid successfully. Remaining due: ₹${billing.dueAmount}`,
+      billing,
+    });
+  } catch (err) {
+    console.error('Repay Due Error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
