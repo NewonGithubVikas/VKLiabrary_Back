@@ -8,12 +8,12 @@ const getRootAdminId = (user) => {
 };
 
 // ────────────────────────────────────────────────
-// BULK CREATE SEATS
+// BULK CREATE SEATS (updated for new schema)
 // ────────────────────────────────────────────────
 exports.addSeatsBulk = async (req, res) => {
   try {
     const user = req.user;
-    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+    if (!user) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const rootAdminId = getRootAdminId(user);
 
@@ -34,9 +34,13 @@ exports.addSeatsBulk = async (req, res) => {
 
     const seats = [];
     for (let i = 0; i < count; i++) {
-      const number = `${prefix}${startNumber + i}`.padStart(3, '0');
+      const numeric = startNumber + i;                          // 1, 2, 3...
+      const display = `${prefix}${String(numeric).padStart(3, '0')}`; // "GF001", "GF002"...
+
       seats.push({
-        number,
+        number: numeric,              // used for sorting
+        displayNumber: display,       // what users see in UI
+        prefix: prefix || undefined,
         type,
         floor,
         createdBy: user._id,
@@ -77,7 +81,7 @@ exports.getAllSeats = async (req, res) => {
     const seats = await Seat.find(filter)
       .populate('floor', 'name')
       .populate('assignedTo', 'name mobile email memberId')
-      .sort({ number: 1 })
+      .sort({ number: 1 })           // ← now sorts correctly (numeric)
       .lean();
 
     res.json({
@@ -92,23 +96,25 @@ exports.getAllSeats = async (req, res) => {
 };
 
 // ────────────────────────────────────────────────
-// GET SEATS FOR SPECIFIC FLOOR
+// GET SEATS BY FLOOR
 // ────────────────────────────────────────────────
 exports.getSeatsByFloor = async (req, res) => {
   try {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
-
     const { floorId } = req.params;
 
     if (!floorId) {
       return res.status(400).json({ success: false, message: 'floorId is required' });
     }
 
-    const seats = await Seat.find({ floor: floorId, rootAdmin: rootAdminId })
+    const seats = await Seat.find({
+      floor: floorId,
+      rootAdmin: rootAdminId,
+    })
       .populate('floor', 'name')
       .populate('assignedTo', 'name mobile memberId')
-      .sort({ number: 1 })
+      .sort({ number: 1 })           // ← correct numeric sort
       .lean();
 
     res.json({
@@ -198,7 +204,7 @@ exports.deleteSeat = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Seat not found or unauthorized' });
     }
 
-    // Optional: Remove seat reference from member if assigned
+    // Remove seat reference from member if assigned
     if (seat.assignedTo) {
       await Member.findByIdAndUpdate(seat.assignedTo, { $unset: { seat: 1 } });
     }
@@ -218,7 +224,7 @@ exports.assignSeat = async (req, res) => {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
 
-    const { member: memberCustomId } = req.body; // ← expects custom memberId like "MEM-0001"
+    const { member: memberCustomId } = req.body;
 
     if (!memberCustomId) {
       return res.status(400).json({ success: false, message: 'member id (MEM-XXXX) is required' });
@@ -230,10 +236,9 @@ exports.assignSeat = async (req, res) => {
     });
 
     if (!member) {
-      return res.status(404).json({ message: `Member with ID ${memberCustomId} not found or unauthorized` });
+      return res.status(404).json({ success: false, message: `Member with ID ${memberCustomId} not found or unauthorized` });
     }
 
-    // Check if seat exists and belongs to rootAdmin
     const seat = await Seat.findOne({
       _id: req.params.id,
       rootAdmin: rootAdminId,
@@ -243,12 +248,10 @@ exports.assignSeat = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Seat not found or unauthorized' });
     }
 
-    // Optional: Check if seat is already assigned
     if (seat.assignedTo) {
       return res.status(400).json({ success: false, message: 'Seat is already assigned to another member' });
     }
 
-    // Assign seat
     const updatedSeat = await Seat.findByIdAndUpdate(
       req.params.id,
       {
@@ -261,7 +264,6 @@ exports.assignSeat = async (req, res) => {
       .populate('assignedTo', 'name mobile email memberId')
       .populate('floor', 'name');
 
-    // Update member with seat reference (bidirectional)
     await Member.findByIdAndUpdate(
       member._id,
       { seat: seat._id },
@@ -297,7 +299,6 @@ exports.unassignSeat = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Seat not found or unauthorized' });
     }
 
-    // Remove seat reference from member if needed
     if (seat.assignedTo) {
       await Member.findByIdAndUpdate(seat.assignedTo, { $unset: { seat: 1 } });
     }

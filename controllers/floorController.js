@@ -9,7 +9,7 @@ exports.createFloor = async (req, res) => {
   try {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
-
+    console.log(req.body)
     const { name, description, capacity } = req.body;
 
     if (!name) {

@@ -163,6 +163,7 @@ exports.freezeMember = async (req, res) => {
   try {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
+    console.log("here is the request body value", req.body);
     const { freezeStartDate, reason } = req.body;
 
     // 1. Validate input

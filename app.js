@@ -19,7 +19,8 @@ const attendanceRoutes = require('./routes/attendanceRoutes');
 const smsRoutes = require('./routes/smsRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const earningRoutes = require('./routes/earningRoutes');
-const uploadRoutes = require('./routes/uploadRoutes');   // ← NEW
+const uploadRoutes = require('./routes/uploadRoutes');
+const subadminRoutes = require('./routes/subadminRoutes');
 
 const app = express();
 
@@ -30,19 +31,52 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
-app.use(rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests, please try again later.'
-}));
+// ──────────────────────────────────────────────
+// Rate Limiting - All values loaded from .env
+// ──────────────────────────────────────────────
 
-// Serve uploaded images
+// General API limit (most routes)
+const generalLimiter = rateLimit({
+  windowMs: (parseInt(process.env.RATE_LIMIT_GENERAL_WINDOW_MIN) || 1) * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_GENERAL_MAX) || 150,
+  message: {
+    success: false,
+    message: 'Too many requests from this IP. Please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter limit for authentication routes (login, register, OTP, etc.)
+const authLimiter = rateLimit({
+  windowMs: (parseInt(process.env.RATE_LIMIT_AUTH_WINDOW_MIN) || 15) * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_AUTH_MAX) || 10,
+  message: {
+    success: false,
+    message: 'Too many authentication attempts. Try again later or reset password.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Optional: stricter limit for file uploads (if needed)
+const uploadLimiter = rateLimit({
+  windowMs: (parseInt(process.env.RATE_LIMIT_UPLOAD_WINDOW_MIN) || 1) * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_UPLOAD_MAX) || 30,
+  message: 'Too many uploads. Please try again in a minute.',
+});
+
+// Apply rate limiters
+app.use('/api/auth', authLimiter);
+app.use('/api/upload', uploadLimiter);       // optional - protect uploads
+app.use('/api', generalLimiter);             // catch-all for other API routes
+
+// Serve uploaded images (no rate limit here)
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/subadmins', require('./routes/subadminRoutes'));
+app.use('/api/subadmins', subadminRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/plans', planRoutes);
@@ -53,9 +87,9 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/sms', smsRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/earn', earningRoutes);
-app.use('/api/upload', uploadRoutes);   // ← NEW (for image upload)
+app.use('/api/upload', uploadRoutes);
 
-// Error Handler
+// Error Handler (last middleware)
 app.use(errorHandler);
 
 // Database Connection
@@ -69,5 +103,8 @@ mongoose.connect(process.env.MONGO_URI)
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Images accessible at: http://localhost:${PORT}/uploads/members/...`);
+  console.log(`Images accessible at: http://localhost:${PORT}/uploads/...`);
+  console.log(`Rate limits active:`);
+  console.log(`  - General: ${process.env.RATE_LIMIT_GENERAL_MAX || 150} req / ${process.env.RATE_LIMIT_GENERAL_WINDOW_MIN || 1} min`);
+  console.log(`  - Auth: ${process.env.RATE_LIMIT_AUTH_MAX || 10} req / ${process.env.RATE_LIMIT_AUTH_WINDOW_MIN || 15} min`);
 });
