@@ -4,7 +4,7 @@ const {
   addMember,
   editMember,
   getAllMembers,
-  getMemberById,
+  // getMemberById,
   blockMember,
   unblockMember,
   freezeMember,
@@ -13,7 +13,8 @@ const {
   searchMembers,
   getMembersByCategory,
   getNextMemberId,  
-  getDueMembers,      // ← NEW
+  getDueMembers, 
+  getMemberCounts ,   // ← NEW
   stats,
 } = require('../controllers/memberController');
 
@@ -26,7 +27,7 @@ router.get('/dueDetails', auth, getDueMembers);
 router.post('/', auth, addMember);
 router.get('/all', auth, getAllMembers);
 router.get('/next-id', auth, getNextMemberId);     // ← NEW ROUTE
-router.get('/:id', auth, getMemberById);
+// router.get('/:id', auth, getMemberById);
 router.put('/:id', auth, editMember);
 
 // Status changes
@@ -39,6 +40,6 @@ router.put('/:id/left', auth, markLeft);
 // Search & Filtered categories
 router.get('/search', auth, searchMembers);
 router.get('/', auth, getMembersByCategory);
-
+router.get('/counts',auth,getMemberCounts);
 
 module.exports = router;
