@@ -5,9 +5,21 @@ const Plan = require('../models/Plan');
 const { isValidObjectId } = require('mongoose');
 const multer = require('multer');
 const uploadMemberImages = require('../middlewares/upload');
-
+const mongoose = require('mongoose');
+// Helper: safely convert to ObjectId or throw
 const getRootAdminId = (user) => {
-  return user.role === 'admin' ? user._id : user.adminId;
+  if (!user) throw new Error('User not found');
+
+  const id = user.role === 'admin' ? user._id : user.adminId;
+
+  if (!id) throw new Error('No root admin ID found');
+
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    return new mongoose.Types.ObjectId(id);
+  }
+
+  console.error('Invalid rootAdminId format:', id);
+  throw new Error('Invalid root admin ID');
 };
 
 exports.addMember = async (req, res) => {
@@ -309,38 +321,156 @@ const getStatusFilter = (category) => {
 
   if (!category || category === 'total') return {};
 
-  if (category === 'live' || category === 'active') return { status: 'active' };
-
+  if (category === 'live' || category === 'active') return { status: 'live' };
   if (category === 'blocked') return { status: 'blocked' };
-  if (category === 'left')    return { status: 'left' };
-  if (category === 'freeze')  return { status: 'freeze' };
+  if (category === 'left') return { status: 'left' };
+  if (category === 'freeze') return { status: 'freeze' };
   if (category === 'expired') return { membershipStatus: 'expired' };
 
-  if (category.startsWith('expiring')) {
-    const now = new Date();
-    let minDays, maxDays;
+  // Expiring ranges
+  const now = new Date();
+  let minDate, maxDate;
 
-    if (category === 'expiring1-3') { minDays = 1; maxDays = 3; }
-    if (category === 'expiring4-7') { minDays = 4; maxDays = 7; }
-    if (category === 'expiring8-15') { minDays = 8; maxDays = 15; }
+  if (category === 'expiring1-3') {
+    minDate = new Date(now);
+    minDate.setDate(now.getDate() + 1);
+    maxDate = new Date(now);
+    maxDate.setDate(now.getDate() + 3);
+  } else if (category === 'expiring4-7') {
+    minDate = new Date(now);
+    minDate.setDate(now.getDate() + 4);
+    maxDate = new Date(now);
+    maxDate.setDate(now.getDate() + 7);
+  } else if (category === 'expiring8-15') {
+    minDate = new Date(now);
+    minDate.setDate(now.getDate() + 8);
+    maxDate = new Date(now);
+    maxDate.setDate(now.getDate() + 15);
+  }
 
-    if (minDays && maxDays) {
-      const minDate = new Date(now);
-      minDate.setDate(now.getDate() + minDays);
-
-      const maxDate = new Date(now);
-      maxDate.setDate(now.getDate() + maxDays);
-
-      return {
-        membershipStatus: 'active',
-        planExpiryDate: { $gte: minDate, $lte: maxDate }
-      };
-    }
+  if (minDate && maxDate) {
+    return {
+      membershipStatus: 'active',
+      planExpiryDate: { $gte: minDate, $lte: maxDate },
+    };
   }
 
   return {};
 };
 
+
+exports.getMemberCounts = async (req, res) => {
+  try {
+    console.log("here is the pin")
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    console.log("value of  user ", user);
+    const rootAdminId = getRootAdminId(user);
+    console.log("value of ", rootAdminId);
+    const stats = await Member.aggregate([
+      {
+        $match: {
+          rootAdmin: rootAdminId,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          live: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+          blocked: { $sum: { $cond: [{ $eq: ['$status', 'blocked'] }, 1, 0] } },
+          left: { $sum: { $cond: [{ $eq: ['$status', 'left'] }, 1, 0] } },
+          expired: { $sum: { $cond: [{ $eq: ['$status', 'expired'] }, 1, 0] } },
+          freeze: { $sum: { $cond: [{ $eq: ['$status', 'freeze'] }, 1, 0] } },
+
+          expiring1_3: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ['$planExpiryDate', null] },
+                    { $lte: ['$planExpiryDate', new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)] },
+                    { $gt: ['$planExpiryDate', new Date()] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          expiring4_7: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ['$planExpiryDate', null] },
+                    { $lte: ['$planExpiryDate', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)] },
+                    { $gt: ['$planExpiryDate', new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          expiring8_15: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ['$planExpiryDate', null] },
+                    { $lte: ['$planExpiryDate', new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)] },
+                    { $gt: ['$planExpiryDate', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          total: 1,
+          live: 1,
+          blocked: 1,
+          left: 1,
+          expired: 1,
+          freeze: 1,
+          expiring1_3: 1,
+          expiring4_7: 1,
+          expiring8_15: 1,
+        },
+      },
+    ]);
+    console.log("value of stats", stats)
+    const counts = stats[0] || {
+      total: 0,
+      live: 0,
+      blocked: 0,
+      left: 0,
+      expired: 0,
+      freeze: 0,
+      expiring1_3: 0,
+      expiring4_7: 0,
+      expiring8_15: 0,
+    };
+
+    res.json({
+      success: true,
+      counts,
+    });
+  } catch (err) {
+    console.error('getMemberCounts error:', err.message);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ──────────────────────────────────────────────
+// GET MEMBERS BY CATEGORY (keep for list view)
+// ──────────────────────────────────────────────
 exports.getMembersByCategory = async (req, res) => {
   try {
     const user = req.user;
@@ -361,6 +491,9 @@ exports.getMembersByCategory = async (req, res) => {
   }
 };
 
+// ──────────────────────────────────────────────
+// GET ALL MEMBERS (keep for full list)
+// ──────────────────────────────────────────────
 exports.getAllMembers = async (req, res) => {
   try {
     const user = req.user;
@@ -377,24 +510,24 @@ exports.getAllMembers = async (req, res) => {
   }
 };
 
-exports.getMemberById = async (req, res) => {
-  try {
-    const user = req.user;
-    const rootAdminId = getRootAdminId(user);
+// exports.getMemberById = async (req, res) => {
+//   try {
+//     const user = req.user;
+//     const rootAdminId = getRootAdminId(user);
 
-    const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId })
-      .populate('seat')
-      .populate('currentPlan')
-      .lean();
+//     const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId })
+//       .populate('seat')
+//       .populate('currentPlan')
+//       .lean();
 
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+//     if (!member) return res.status(404).json({ message: 'Member not found' });
 
-    res.json(member);
-  } catch (err) {
-    console.error('getMemberById Error:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
+//     res.json(member);
+//   } catch (err) {
+//     console.error('getMemberById Error:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// };
 
 exports.editMember = async (req, res) => {
   try {
@@ -631,7 +764,8 @@ exports.getDueMembers = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
-exports.stats = async (req, res) => {
+exports.
+stats = async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);

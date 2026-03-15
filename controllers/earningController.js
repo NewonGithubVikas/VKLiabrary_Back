@@ -39,6 +39,7 @@ exports.getEarningSummary = async (req, res) => {
         break;
 
       case 'week':
+        console.log("value",'week');
         startDate = new Date(today);
         startDate.setDate(today.getDate() - 7);
         break;
@@ -81,7 +82,7 @@ exports.getEarningSummary = async (req, res) => {
         ]);
 
         const totalDue = dueResult.length > 0 ? dueResult[0].totalDue : 0;
-
+        
         return res.json({
           success: true,
           range: 'total_due',
