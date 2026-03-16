@@ -9,7 +9,7 @@ const getRootAdminId = (user) => {
 exports.getEarningSummary = async (req, res) => {
 
   try {
-    console.log("get earning summary");
+
     const user = req.user;
     if (!user) return res.status(401).json({ message: 'Unauthorized' });
 
@@ -39,7 +39,7 @@ exports.getEarningSummary = async (req, res) => {
         break;
 
       case 'week':
-        console.log("value",'week');
+  
         startDate = new Date(today);
         startDate.setDate(today.getDate() - 7);
         break;
@@ -82,7 +82,7 @@ exports.getEarningSummary = async (req, res) => {
         ]);
 
         const totalDue = dueResult.length > 0 ? dueResult[0].totalDue : 0;
-        
+       console.log("total due",dueResult )
         return res.json({
           success: true,
           range: 'total_due',
@@ -112,7 +112,7 @@ exports.getEarningSummary = async (req, res) => {
     ]);
 
     const totalEarnings = earningsResult.length > 0 ? earningsResult[0].totalEarnings : 0;
-
+    console.log("total earning ",earningsResult);
     res.json({
       success: true,
       range,

@@ -4,7 +4,7 @@ const {
   addMember,
   editMember,
   getAllMembers,
-  // getMemberById,
+  getMemberById,
   blockMember,
   unblockMember,
   freezeMember,
@@ -21,13 +21,16 @@ const {
 const   router = express.Router();
   
 router.get('/stats', auth,stats);
-
+// Search & Filtered categories
+router.get('/search', auth, searchMembers);
+router.get('/', auth, getMembersByCategory);
+router.get('/counts',auth,getMemberCounts);
 router.get('/dueDetails', auth, getDueMembers);
 // Basic CRUD
 router.post('/', auth, addMember);
 router.get('/all', auth, getAllMembers);
 router.get('/next-id', auth, getNextMemberId);     // ← NEW ROUTE
-// router.get('/:id', auth, getMemberById);
+router.get('/:id', auth, getMemberById);
 router.put('/:id', auth, editMember);
 
 // Status changes
@@ -37,9 +40,6 @@ router.put('/:id/freeze', auth, freezeMember);
 router.put('/:id/unfreeze', auth, unfreezeMember);
 router.put('/:id/left', auth, markLeft);
 
-// Search & Filtered categories
-router.get('/search', auth, searchMembers);
-router.get('/', auth, getMembersByCategory);
-router.get('/counts',auth,getMemberCounts);
+
 
 module.exports = router;

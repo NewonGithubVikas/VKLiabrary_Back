@@ -175,7 +175,7 @@ exports.freezeMember = async (req, res) => {
   try {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
-    console.log("here is the request body value", req.body);
+    //console.log("here is the request body value", req.body);
     const { freezeStartDate, reason } = req.body;
 
     // 1. Validate input
@@ -321,7 +321,7 @@ const getStatusFilter = (category) => {
 
   if (!category || category === 'total') return {};
 
-  if (category === 'live' || category === 'active') return { status: 'live' };
+  if (category === 'live' || category === 'active') return { status: 'active' };
   if (category === 'blocked') return { status: 'blocked' };
   if (category === 'left') return { status: 'left' };
   if (category === 'freeze') return { status: 'freeze' };
@@ -361,12 +361,12 @@ const getStatusFilter = (category) => {
 
 exports.getMemberCounts = async (req, res) => {
   try {
-    console.log("here is the pin")
+    //console.log("here is the pin")
     const user = req.user;
     if (!user) return res.status(401).json({ success: false, message: 'Unauthorized' });
-    console.log("value of  user ", user);
+    //console.log("value of  user ", user);
     const rootAdminId = getRootAdminId(user);
-    console.log("value of ", rootAdminId);
+    //console.log("value of ", rootAdminId);
     const stats = await Member.aggregate([
       {
         $match: {
@@ -445,7 +445,7 @@ exports.getMemberCounts = async (req, res) => {
         },
       },
     ]);
-    console.log("value of stats", stats)
+    // //console.log("value of stats", stats)
     const counts = stats[0] || {
       total: 0,
       live: 0,
@@ -510,24 +510,24 @@ exports.getAllMembers = async (req, res) => {
   }
 };
 
-// exports.getMemberById = async (req, res) => {
-//   try {
-//     const user = req.user;
-//     const rootAdminId = getRootAdminId(user);
+exports.getMemberById = async (req, res) => {
+  try {
+    const user = req.user;
+    const rootAdminId = getRootAdminId(user);
 
-//     const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId })
-//       .populate('seat')
-//       .populate('currentPlan')
-//       .lean();
+    const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId })
+      .populate('seat')
+      .populate('currentPlan')
+      .lean();
 
-//     if (!member) return res.status(404).json({ message: 'Member not found' });
+    if (!member) return res.status(404).json({ message: 'Member not found' });
 
-//     res.json(member);
-//   } catch (err) {
-//     console.error('getMemberById Error:', err);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// };
+    res.json(member);
+  } catch (err) {
+    console.error('getMemberById Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 
 exports.editMember = async (req, res) => {
   try {
@@ -638,7 +638,7 @@ exports.getNextMemberId = async (req, res) => {
       .select('memberId')
       .lean();
 
-    console.log("Last member found:", lastMember);
+    //console.log("Last member found:", lastMember);
 
     let nextNumber = 1;
 

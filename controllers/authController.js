@@ -148,6 +148,7 @@ exports.login = [
 
 exports.getMe = async (req, res) => {
   try {
+    console.log("value",req.user);
     const user = await User.findById(req.user._id).select('-password');
     if (!user) {
       return res.status(404).json({ success: false, msg: 'User not found' });
