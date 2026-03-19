@@ -251,12 +251,20 @@ exports.assignSeat = async (req, res) => {
     if (seat.assignedTo) {
       return res.status(400).json({ success: false, message: 'Seat is already assigned to another member' });
     }
-
+    if(member.seat){
+      await Seat.findByIdAndUpdate(
+        member.seat,
+        {
+          assignedTo:null,
+          reserved:false,
+        status: 'available', 
+      }) 
+    }
     const updatedSeat = await Seat.findByIdAndUpdate(
       req.params.id,
       {
         assignedTo: member._id,
-        reserved: false,
+        reserved: true,
         status: 'occupied',
       },
       { new: true, runValidators: true }
