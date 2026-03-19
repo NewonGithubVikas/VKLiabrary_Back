@@ -475,7 +475,7 @@ exports.getMembersByCategory = async (req, res) => {
   try {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
-
+    console.log(req.user.category);
     const { category } = req.query;
     const statusFilter = getStatusFilter(category);
     const filter = { ...statusFilter, rootAdmin: rootAdminId };
@@ -603,9 +603,9 @@ exports.searchMembers = async (req, res) => {
   try {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
-
-    const { query } = req.query;
-
+    
+    const { query,limit} = req.query;
+    console.log("data ",query)
     if (!query?.trim()) {
       return res.json([]);
     }
@@ -617,8 +617,8 @@ exports.searchMembers = async (req, res) => {
         { mobile: { $regex: query, $options: 'i' } },
         { uniqueId: { $regex: query, $options: 'i' } }
       ]
-    }).limit(20).lean();
-
+    }).select('name memberId mobile status').limit(limit).lean();
+    console.log(members,"details");
     res.json(members);
   } catch (err) {
     console.error('searchMembers Error:', err);

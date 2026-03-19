@@ -78,7 +78,7 @@ freezeHistory: [{
   },
   days: {
     type: Number,
-    min: 1
+    min: 0
     // required: false  ← Remove required
   },
   appliedBy: {
