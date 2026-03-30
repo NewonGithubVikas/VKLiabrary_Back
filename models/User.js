@@ -4,6 +4,12 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   mobile :  { type: String, required: true, unique: true },
   username: { type: String, required: true, unique: true },
+    refreshToken: {
+    type: String,
+  },
+  email:  {
+    type : String
+  },
   password: { type: String, required: true },
   role: { type: String, enum: ['admin', 'subadmin'], default: 'admin', required: true },
   adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // For subadmins: parent admin

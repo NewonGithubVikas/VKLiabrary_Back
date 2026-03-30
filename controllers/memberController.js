@@ -57,6 +57,8 @@ exports.addMember = async (req, res) => {
         remarks,
         plan,
         planAmount,
+        discountType,
+        discountValue,
         startDate,
         expiryDate,
         paymentMethod,
@@ -65,7 +67,7 @@ exports.addMember = async (req, res) => {
         taxAmount = 0,
         dueAmount = 0,
       } = req.body;
-
+      console.log("data",req.body);
       // Validation
       if (!memberId || !/^MEM-\d{4}$/.test(memberId)) {
         return res.status(400).json({
@@ -140,6 +142,8 @@ exports.addMember = async (req, res) => {
             enrollmentFee: Number(enrollmentFee) || 0,
             taxAmount: Number(taxAmount) || 0,
             dueAmount: Number(dueAmount) || 0,
+            discountType: discountType || undefined,
+            discountValue:Number(discountValue)|| 0,
             status: Number(dueAmount) > 0 ? (Number(paidAmount) > 0 ? 'partial' : 'pending') : 'paid',
             billDate: new Date(),
             createdBy: user._id,

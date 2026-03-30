@@ -1,7 +1,7 @@
 // controllers/subadminController.js (or inside your routes file)
-const User = require('../models/User');
-const validate = require('../middlewares/validation');
-const Joi = require('joi');
+const User = require("../models/User");
+const validate = require("../middlewares/validation");
+const Joi = require("joi");
 
 // ──────────────────────────────────────────────
 // Validation Schema for Subadmin Creation
@@ -11,13 +11,14 @@ const addSubadminSchema = Joi.object({
     .pattern(/^[6-9]\d{9}$/)
     .required()
     .messages({
-      'string.pattern.base': 'Mobile number must be a valid 10-digit Indian number',
-      'any.required': 'Mobile number is required',
+      "string.pattern.base":
+        "Mobile number must be a valid 10-digit Indian number",
+      "any.required": "Mobile number is required",
     }),
   username: Joi.string().optional().trim(),
   password: Joi.string().min(6).required().messages({
-    'string.min': 'Password must be at least 6 characters',
-    'any.required': 'Password is required',
+    "string.min": "Password must be at least 6 characters",
+    "any.required": "Password is required",
   }),
 });
 
@@ -30,22 +31,24 @@ exports.addSubadmin = [
     const admin = req.user;
 
     // Only main admin can create subadmins
-    if (admin.role !== 'admin') {
+    if (admin.role !== "admin") {
       return res.status(403).json({
         success: false,
-        msg: 'Only main admins can create subadmins',
+        msg: "Only main admins can create subadmins",
       });
     }
 
-    const { mobile, username, password } = req.body;
+    const { mobile, email, username, password } = req.body;
 
     try {
       // Check if mobile already exists (unique)
-      let existingUser = await User.findOne({ mobile });
+      let existingUser = await User.findOne({
+        $or: [{ mobile: mobile }, { email: email }],
+      });
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          msg: 'Mobile number already registered',
+          msg: "User already exists with this mobile or email",
         });
       }
 
@@ -55,7 +58,7 @@ exports.addSubadmin = [
         if (existingUser) {
           return res.status(400).json({
             success: false,
-            msg: 'Username already taken',
+            msg: "Username already taken",
           });
         }
       }
@@ -63,9 +66,10 @@ exports.addSubadmin = [
       // Create subadmin
       const subadmin = new User({
         mobile,
+        email,
         username: username || `sub_${mobile.slice(-4)}`, // auto-generate if not given
         password,
-        role: 'subadmin',
+        role: "subadmin",
         adminId: admin._id, // link to parent admin
       });
 
@@ -73,7 +77,7 @@ exports.addSubadmin = [
 
       res.status(201).json({
         success: true,
-        msg: 'Subadmin created successfully',
+        msg: "Subadmin created successfully",
         subadmin: {
           id: subadmin._id,
           mobile: subadmin.mobile,
@@ -83,10 +87,10 @@ exports.addSubadmin = [
         },
       });
     } catch (err) {
-      console.error('ADD SUBADMIN ERROR:', err);
+      console.error("ADD SUBADMIN ERROR:", err);
       res.status(500).json({
         success: false,
-        msg: 'Server error while creating subadmin',
+        msg: "Server error while creating subadmin",
         error: err.message,
       });
     }
@@ -99,18 +103,18 @@ exports.addSubadmin = [
 exports.getMySubadmins = async (req, res) => {
   const admin = req.user;
 
-  if (admin.role !== 'admin') {
+  if (admin.role !== "admin") {
     return res.status(403).json({
       success: false,
-      msg: 'Only main admins can view their subadmins',
+      msg: "Only main admins can view their subadmins",
     });
   }
 
   try {
     const subadmins = await User.find({
-      role: 'subadmin',
+      role: "subadmin",
       adminId: admin._id,
-    }).select('-password'); // never return password
+    }).select("-password"); // never return password
 
     res.json({
       success: true,
@@ -118,10 +122,10 @@ exports.getMySubadmins = async (req, res) => {
       subadmins,
     });
   } catch (err) {
-    console.error('GET MY SUBADMINS ERROR:', err);
+    console.error("GET MY SUBADMINS ERROR:", err);
     res.status(500).json({
       success: false,
-      msg: 'Server error while fetching subadmins',
+      msg: "Server error while fetching subadmins",
     });
   }
 };
@@ -136,10 +140,10 @@ exports.deleteSubadmin = async (req, res) => {
   const { subadminId } = req.params;
 
   // Only admins can delete subadmins
-  if (admin.role !== 'admin') {
+  if (admin.role !== "admin") {
     return res.status(403).json({
       success: false,
-      msg: 'Only main admins can delete subadmins',
+      msg: "Only main admins can delete subadmins",
     });
   }
 
@@ -150,7 +154,7 @@ exports.deleteSubadmin = async (req, res) => {
     if (!subadmin) {
       return res.status(404).json({
         success: false,
-        msg: 'Subadmin not found',
+        msg: "Subadmin not found",
       });
     }
 
@@ -158,15 +162,15 @@ exports.deleteSubadmin = async (req, res) => {
     if (subadmin.adminId?.toString() !== admin._id.toString()) {
       return res.status(403).json({
         success: false,
-        msg: 'You do not have permission to delete this subadmin',
+        msg: "You do not have permission to delete this subadmin",
       });
     }
 
     // Prevent deletion if role is not subadmin (safety check)
-    if (subadmin.role !== 'subadmin') {
+    if (subadmin.role !== "subadmin") {
       return res.status(400).json({
         success: false,
-        msg: 'Only subadmin accounts can be deleted via this endpoint',
+        msg: "Only subadmin accounts can be deleted via this endpoint",
       });
     }
 
@@ -178,10 +182,10 @@ exports.deleteSubadmin = async (req, res) => {
       msg: `Subadmin "${subadmin.username || subadmin.mobile}" deleted successfully`,
     });
   } catch (err) {
-    console.error('DELETE SUBADMIN ERROR:', err);
+    console.error("DELETE SUBADMIN ERROR:", err);
     res.status(500).json({
       success: false,
-      msg: 'Server error while deleting subadmin',
+      msg: "Server error while deleting subadmin",
       error: err.message,
     });
   }

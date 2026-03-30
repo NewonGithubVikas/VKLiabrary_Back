@@ -188,6 +188,7 @@ exports.getMemberBillHistory = async (req, res) => {
       .populate('plan', 'name amount duration')
       .sort({ createdAt: -1 });
 
+      console.log(history);
     res.json({
       success: true,
       count: history.length,
