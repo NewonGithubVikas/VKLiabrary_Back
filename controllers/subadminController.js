@@ -15,11 +15,24 @@ const addSubadminSchema = Joi.object({
         "Mobile number must be a valid 10-digit Indian number",
       "any.required": "Mobile number is required",
     }),
+
+  email: Joi.string()
+    .email({ tlds: { allow: false } }) // allows all domains
+    .required()
+    .messages({
+      "string.email": "Email must be a valid email address",
+      "any.required": "Email is required",
+    }),
+
   username: Joi.string().optional().trim(),
-  password: Joi.string().min(6).required().messages({
-    "string.min": "Password must be at least 6 characters",
-    "any.required": "Password is required",
-  }),
+
+  password: Joi.string()
+    .min(6)
+    .required()
+    .messages({
+      "string.min": "Password must be at least 6 characters",
+      "any.required": "Password is required",
+    }),
 });
 
 // ──────────────────────────────────────────────
@@ -29,7 +42,7 @@ exports.addSubadmin = [
   validate(addSubadminSchema),
   async (req, res) => {
     const admin = req.user;
-
+  
     // Only main admin can create subadmins
     if (admin.role !== "admin") {
       return res.status(403).json({
@@ -39,9 +52,9 @@ exports.addSubadmin = [
     }
 
     const { mobile, email, username, password } = req.body;
-
+    // console.log("data ",req.body);
     try {
-      // Check if mobile already exists (unique)
+    //   // Check if mobile already exists (unique)
       let existingUser = await User.findOne({
         $or: [{ mobile: mobile }, { email: email }],
       });
@@ -52,7 +65,7 @@ exports.addSubadmin = [
         });
       }
 
-      // Optional: check username if provided
+      // // Optional: check username if provided
       if (username) {
         existingUser = await User.findOne({ username });
         if (existingUser) {
