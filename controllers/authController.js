@@ -33,6 +33,14 @@ const registerSchema = Joi.object({
   mobile: Joi.string()
     .pattern(/^[6-9]\d{9}$/)
     .required(),
+
+  email: Joi.string()
+    .email({ tlds: { allow: false } }) // allows all domains
+    .required()
+    .messages({
+      "string.email": "Email must be a valid email address",
+      "any.required": "Email is required",
+    }),
   username: Joi.string().optional(),
   password: Joi.string().min(6).required(),
 });
@@ -251,7 +259,10 @@ exports.register = [
       if (user) {
         return res
           .status(400)
-          .json({ success: false, msg: "User already exists with this mobile or email"});
+          .json({
+            success: false,
+            msg: "User already exists with this mobile or email",
+          });
       }
 
       user = new User({
