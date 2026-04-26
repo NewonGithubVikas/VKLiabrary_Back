@@ -38,6 +38,7 @@ exports.markAttendance = async (req, res) => {
     const memberDoc = await Member.findOne({
       _id: member,
       rootAdmin: rootAdminId,
+      status : {$ne:'delete'}
     });
 
     if (!memberDoc) {
@@ -53,6 +54,7 @@ exports.markAttendance = async (req, res) => {
     // Check for duplicate attendance on same day
     const existing = await Attendance.findOne({
       member,
+      status : {$ne:'delete'},
       date: {
         $gte: attendanceDate,
         $lte: new Date(attendanceDate).setHours(23, 59, 59, 999),
@@ -127,7 +129,7 @@ exports.getAttendanceHistory = async (req, res) => {
 
     const { member, startDate, endDate, limit = 30 } = req.query;
 
-    const filter = { rootAdmin: rootAdminId };
+    const filter = { rootAdmin: rootAdminId,status : {$ne:'delete'} };
     if (member) filter.member = member;
     if (startDate) filter.date = { $gte: new Date(startDate) };
     if (endDate) {

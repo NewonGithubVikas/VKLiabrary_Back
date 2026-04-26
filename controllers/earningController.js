@@ -70,6 +70,7 @@ exports.getEarningSummary = async (req, res) => {
           {
             $match: {
               rootAdmin: rootAdminId,
+              status : {$ne:'delete'},
               lastDueAmount: { $gt: 0 },
             },
           },

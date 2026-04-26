@@ -374,16 +374,17 @@ exports.getMemberCounts = async (req, res) => {
     const stats = await Member.aggregate([
       {
         $match: {
+          
           rootAdmin: rootAdminId,
         },
       },
       {
         $group: {
           _id: null,
-          total: { $sum: 1 },
+          total: { $sum: { $cond: [{ $ne: ['$status', 'delete'] }, 1, 0] } },
           live: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
           blocked: { $sum: { $cond: [{ $eq: ['$status', 'blocked'] }, 1, 0] } },
-          left: { $sum: { $cond: [{ $eq: ['$status', 'left'] }, 1, 0] } },
+          left: { $sum: { $cond: [{ $eq: ['$status', 'delete'] }, 1, 0] } },
           expired: { $sum: { $cond: [{ $eq: ['$status', 'expired'] }, 1, 0] } },
           freeze: { $sum: { $cond: [{ $eq: ['$status', 'freeze'] }, 1, 0] } },
 
@@ -503,7 +504,7 @@ exports.getAllMembers = async (req, res) => {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
 
-    const members = await Member.find({ rootAdmin: rootAdminId })
+    const members = await Member.find({ rootAdmin: rootAdminId ,status : {$ne:'delete'}})
       .sort({ createdAt: -1 })
       .lean();
 
@@ -519,7 +520,7 @@ exports.getMemberById = async (req, res) => {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
 
-    const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId })
+    const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId,status : {$ne:'delete'} })
       .populate('seat')
       .populate('currentPlan')
       .lean();
@@ -579,6 +580,38 @@ exports.unblockMember = (req, res) => updateStatus(req, res, 'active');
 
 exports.markLeft      = (req, res) => updateStatus(req, res, 'left');
 
+// exports.markDelete = (req,res)=>updateStatus(req,res,'delete')
+
+exports.deleteId = async (req, res) => {
+   try {
+    const user = req.user;
+    const rootAdminId = getRootAdminId(user);
+   
+    const userfound = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId });
+    if (!userfound) return res.status(404).json({ message: 'Member not found' });
+    const dueAmount = await Billing.findOne({ member:req.params.id , rootAdmin:rootAdminId,status:{$ne:'paid'}})
+    
+    if(dueAmount){
+    return res.status(409).json({ 
+        success: false, 
+        message: 'Please clear due amount' 
+      });
+    }
+    
+   const member=await Member.findOneAndUpdate(
+      { _id: req.params.id, rootAdmin: rootAdminId },
+      { status: 'delete' },
+      { new: true });
+    
+    
+
+    res.json({ message: `Member ${newStatus}`, member });
+  } catch (err) {
+    console.error('updateStatus Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+}
+
 exports.markExpired = async (req, res) => {
   try {
     const user = req.user;
@@ -616,6 +649,7 @@ exports.searchMembers = async (req, res) => {
 
     const members = await Member.find({
       rootAdmin: rootAdminId,
+      status : {$ne:'delete'},
       $or: [
         { name: { $regex: query, $options: 'i' } },
         { mobile: { $regex: query, $options: 'i' } },
@@ -700,6 +734,7 @@ exports.getDueMembers = async (req, res) => {
       .populate({
         path: 'member',
         select: 'memberId name mobile status lastDueAmount',
+        match: { status: { $ne: 'delete' } }
       })
       .populate({
         path: 'plan',
@@ -790,31 +825,31 @@ stats = async (req, res) => {
       // Live (active) - planExpiryDate >= today
       Member.countDocuments({
         planExpiryDate: { $gte: today },
-        status: { $nin: ['blocked', 'left', 'freeze'] }, // adjust status values as per your schema
+        status: { $nin: ['blocked', 'left', 'freeze','delete'] }, // adjust status values as per your schema
       }),
 
       // Expired - planExpiryDate < today
       Member.countDocuments({
         planExpiryDate: { $lt: today },
-        status: { $nin: ['blocked', 'left', 'freeze'] },
+        status: { $nin: ['blocked', 'left', 'freeze','delete'] },
       }),
 
       // Expiring 1-3 days
       Member.countDocuments({
         planExpiryDate: getExpiringRange(1, 3),
-        status: { $nin: ['blocked', 'left', 'freeze'] },
+        status: { $nin: ['blocked', 'left', 'freeze','delete'] },
       }),
 
       // Expiring 4-7 days
       Member.countDocuments({
         planExpiryDate: getExpiringRange(4, 7),
-        status: { $nin: ['blocked', 'left', 'freeze'] },
+        status: { $nin: ['blocked', 'left', 'freeze','delete'] },
       }),
 
       // Expiring 8-15 days
       Member.countDocuments({
         planExpiryDate: getExpiringRange(8, 15),
-        status: { $nin: ['blocked', 'left', 'freeze'] },
+        status: { $nin: ['blocked', 'left', 'freeze','delete'] },
       }),
 
       // Blocked

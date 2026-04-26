@@ -10,6 +10,8 @@ const {
   freezeMember,
   unfreezeMember,
   markLeft,
+  deleteId,
+  markDelete,
   searchMembers,
   getMembersByCategory,
   getNextMemberId,  
@@ -38,7 +40,10 @@ router.put('/:id/block', auth, blockMember);
 router.put('/:id/unblock', auth, unblockMember);
 router.put('/:id/freeze', auth, freezeMember);
 router.put('/:id/unfreeze', auth, unfreezeMember);
-router.put('/:id/left', auth, markLeft);
+//markLeft will work like delete the student details from the tables.
+// router.put('/:id/left', auth, markLeft);
+router.put('/:id/left', auth,deleteId);
+// router.put('/:id/left', auth,markDelete);
 
 
 

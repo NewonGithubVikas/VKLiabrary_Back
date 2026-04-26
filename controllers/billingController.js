@@ -203,6 +203,7 @@ exports.totalDue = async (req, res) => {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
 
+    
     const billing = await Billing.findOne({
       _id: req.params.id,
       rootAdmin: rootAdminId

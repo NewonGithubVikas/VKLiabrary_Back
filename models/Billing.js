@@ -6,7 +6,7 @@ const billingSchema = new mongoose.Schema({
   plan: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan', required: true },
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
-  paymentMethod: { type: String, enum: ['cash', 'upi', 'card', 'bank'], default: 'cash' },
+  paymentMethod: { type: String, enum: ['cash', 'online'], default: 'cash' },
   paidAmount: { type: Number, default: 0 },
   discountType: { type: String, enum: ['percentage', 'flat', null], default: null },
   discountValue: { type: Number, default: 0 },

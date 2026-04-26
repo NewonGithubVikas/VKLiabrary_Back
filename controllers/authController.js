@@ -205,7 +205,7 @@ exports.resetPassword = async (req, res) => {
 
   try {
     // Find user
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase(),status : {$ne:'delete'} });
     if (!user) {
       return res.status(404).json({
         success: false,

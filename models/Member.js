@@ -27,7 +27,7 @@ const memberSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['active', 'blocked', 'left', 'freeze'],
+    enum: ['active', 'blocked', 'left', 'freeze','delete'],
     default: 'active'
   },
 
