@@ -602,10 +602,10 @@ exports.deleteId = async (req, res) => {
       { _id: req.params.id, rootAdmin: rootAdminId },
       { status: 'delete' },
       { new: true });
-    
+    x
     
 
-    res.json({ message: `Member ${newStatus}`, member });
+    res.json({ message: `Member Deleted successfully`, member });
   } catch (err) {
     console.error('updateStatus Error:', err);
     res.status(500).json({ message: 'Server error' });
