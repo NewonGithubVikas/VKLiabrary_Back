@@ -1,22 +1,20 @@
-const Billing = require('../models/Billing');
-const Member = require('../models/Member'); // needed for total due calculation
+const Billing = require("../models/Billing");
+const Member = require("../models/Member"); // needed for total due calculation
 
 // Helper to get rootAdminId from authenticated user
 const getRootAdminId = (user) => {
-  return user.role === 'admin' ? user._id : user.adminId;
+  return user.role === "admin" ? user._id : user.adminId;
 };
 
 exports.getEarningSummary = async (req, res) => {
-
   try {
-
     const user = req.user;
-    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     const rootAdminId = getRootAdminId(user);
 
     // Get requested range from query param (default = week)
-    const range = (req.query.range || 'week').toLowerCase();
+    const range = (req.query.range || "thisWeek").toLowerCase();
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -25,74 +23,71 @@ exports.getEarningSummary = async (req, res) => {
     let endDate = new Date(today);
     endDate.setHours(23, 59, 59, 999);
 
-    // Define date ranges
     switch (range) {
-      case 'today':
+      case "today":
         startDate = new Date(today);
         break;
 
-      case 'yesterday':
+      case "yesterday":
         startDate = new Date(today);
         startDate.setDate(today.getDate() - 1);
+
         endDate = new Date(startDate);
         endDate.setHours(23, 59, 59, 999);
         break;
 
-      case 'week':
-  
+      case "thisweek":
         startDate = new Date(today);
-        startDate.setDate(today.getDate() - 7);
+        startDate.setDate(today.getDate() - today.getDay()); // Sunday start
         break;
 
-      case 'month':
-        startDate = new Date(today);
-        startDate.setMonth(today.getMonth() - 1);
+      case "thismonth":
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
         break;
 
-      case '3months':
-      case 'threemonths':
-        startDate = new Date(today);
-        startDate.setMonth(today.getMonth() - 3);
+      case "lastmonth":
+        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        endDate.setHours(23, 59, 59, 999);
         break;
 
-      case '6months':
-        startDate = new Date(today);
-        startDate.setMonth(today.getMonth() - 6);
+      case "last3months":
+        startDate = new Date(today.getFullYear(), today.getMonth() - 3, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        endDate.setHours(23, 59, 59, 999);
         break;
-
-      case 'all':
-        startDate = new Date(0); // from beginning of time
-        break;
-
-      case 'due':
+      case "due":
         // Special case: total outstanding due
         const dueResult = await Member.aggregate([
           {
             $match: {
               rootAdmin: rootAdminId,
-              status : {$ne:'delete'},
+              status: { $ne: "delete" },
               lastDueAmount: { $gt: 0 },
             },
           },
           {
             $group: {
               _id: null,
-              totalDue: { $sum: '$lastDueAmount' },
+              totalDue: { $sum: "$lastDueAmount" },
             },
           },
         ]);
 
         const totalDue = dueResult.length > 0 ? dueResult[0].totalDue : 0;
-       console.log("total due",dueResult )
+        console.log("total due", dueResult);
         return res.json({
           success: true,
-          range: 'total_due',
+          range: "total_due",
           totalDue,
-          formattedDue: `₹${totalDue.toLocaleString('en-IN')}`,
+          formattedDue: `₹${totalDue.toLocaleString("en-IN")}`,
         });
 
       default:
-        return res.status(400).json({ message: 'Invalid range. Use: today, yesterday, week, month, 3months, 6months, all, due' });
+        return res.status(400).json({
+          message:
+            "Invalid range. Use: today, yesterday, thisWeek, thisMonth, lastMonth, last3Months",
+        });
     }
 
     // Common earnings query for date-based ranges
@@ -101,29 +96,30 @@ exports.getEarningSummary = async (req, res) => {
         $match: {
           rootAdmin: rootAdminId,
           billDate: { $gte: startDate, $lte: endDate },
-          status: { $in: ['paid', 'partial'] },
+          status: { $in: ["paid", "partial"] },
         },
       },
       {
         $group: {
           _id: null,
-          totalEarnings: { $sum: '$paidAmount' },
+          totalEarnings: { $sum: "$paidAmount" },
         },
       },
     ]);
 
-    const totalEarnings = earningsResult.length > 0 ? earningsResult[0].totalEarnings : 0;
-    console.log("total earning ",earningsResult);
+    const totalEarnings =
+      earningsResult.length > 0 ? earningsResult[0].totalEarnings : 0;
+    console.log("total earning ", earningsResult);
     res.json({
       success: true,
       range,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       totalEarnings,
-      formatted: `₹${totalEarnings.toLocaleString('en-IN')}`,
+      formatted: `₹${totalEarnings.toLocaleString("en-IN")}`,
     });
   } catch (err) {
-    console.error('Get Earning Summary Error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("Get Earning Summary Error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 };
