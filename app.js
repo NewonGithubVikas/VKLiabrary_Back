@@ -21,7 +21,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const earningRoutes = require('./routes/earningRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const subadminRoutes = require('./routes/subadminRoutes');
-
+const addressRoutes = require('./routes/addressRoutes');
 const app = express();
 
 // Security & Logging
@@ -75,6 +75,7 @@ app.use('/api', generalLimiter);             // catch-all for other API routes
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // Routes
+app.use('/api/addresses', addressRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/subadmins', subadminRoutes);
 app.use('/api/dashboard', dashboardRoutes);

@@ -1,31 +1,32 @@
 // controllers/memberController.js
-const Member = require('../models/Member');
-const Billing = require('../models/Billing');
-const Plan = require('../models/Plan');
-const { isValidObjectId } = require('mongoose');
-const multer = require('multer');
-const uploadMemberImages = require('../middlewares/upload');
-const mongoose = require('mongoose');
+const Member = require("../models/Member");
+const Billing = require("../models/Billing");
+const Plan = require("../models/Plan");
+const { isValidObjectId } = require("mongoose");
+const multer = require("multer");
+const uploadMemberImages = require("../middlewares/upload");
+const mongoose = require("mongoose");
 // Helper: safely convert to ObjectId or throw
 const getRootAdminId = (user) => {
-  if (!user) throw new Error('User not found');
+  if (!user) throw new Error("User not found");
 
-  const id = user.role === 'admin' ? user._id : user.adminId;
+  const id = user.role === "admin" ? user._id : user.adminId;
 
-  if (!id) throw new Error('No root admin ID found');
+  if (!id) throw new Error("No root admin ID found");
 
   if (mongoose.Types.ObjectId.isValid(id)) {
     return new mongoose.Types.ObjectId(id);
   }
 
-  console.error('Invalid rootAdminId format:', id);
-  throw new Error('Invalid root admin ID');
+  console.error("Invalid rootAdminId format:", id);
+  throw new Error("Invalid root admin ID");
 };
 
 exports.addMember = async (req, res) => {
   try {
     const user = req.user;
-    if (!user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!user)
+      return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const rootAdminId = getRootAdminId(user);
 
@@ -34,8 +35,13 @@ exports.addMember = async (req, res) => {
       if (err instanceof multer.MulterError) {
         return res.status(400).json({ success: false, message: err.message });
       } else if (err) {
-        console.error('Multer/Cloudinary error:', err);
-        return res.status(400).json({ success: false, message: err.message || 'File upload error' });
+        console.error("Multer/Cloudinary error:", err);
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: err.message || "File upload error",
+          });
       }
 
       // Extract text fields
@@ -67,12 +73,12 @@ exports.addMember = async (req, res) => {
         taxAmount = 0,
         dueAmount = 0,
       } = req.body;
-      console.log("data",req.body);
+      console.log("data", req.body);
       // Validation
       if (!memberId || !/^MEM-\d{4}$/.test(memberId)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid memberId format. Use MEM-XXXX (e.g. MEM-0001)'
+          message: "Invalid memberId format. Use MEM-XXXX (e.g. MEM-0001)",
         });
       }
 
@@ -84,7 +90,7 @@ exports.addMember = async (req, res) => {
 
       const additionalPhotos = [];
       if (req.files?.additionalPhotos) {
-        req.files.additionalPhotos.forEach(file => {
+        req.files.additionalPhotos.forEach((file) => {
           additionalPhotos.push(file.path); // Cloudinary secure URL
         });
       }
@@ -114,7 +120,7 @@ exports.addMember = async (req, res) => {
         currentPlan: plan || undefined,
         planStartDate: startDate ? new Date(startDate) : undefined,
         planExpiryDate: expiryDate ? new Date(expiryDate) : undefined,
-        membershipStatus: Number(paidAmount) > 0 ? 'active' : 'pending',
+        membershipStatus: Number(paidAmount) > 0 ? "active" : "pending",
 
         lastPlanAmount: planAmount ? Number(planAmount) : undefined,
         lastEnrollmentFee: enrollmentFee ? Number(enrollmentFee) : undefined,
@@ -130,21 +136,29 @@ exports.addMember = async (req, res) => {
       // Billing logic (unchanged)
       let billing = null;
       if (plan && isValidObjectId(plan) && startDate) {
-        const planDoc = await Plan.findOne({ _id: plan, rootAdmin: rootAdminId });
+        const planDoc = await Plan.findOne({
+          _id: plan,
+          rootAdmin: rootAdminId,
+        });
         if (planDoc) {
           billing = new Billing({
             member: member._id,
             plan,
             startDate: new Date(startDate),
             endDate: expiryDate ? new Date(expiryDate) : undefined,
-            paymentMethod: paymentMethod || 'cash',
+            paymentMethod: paymentMethod || "cash",
             paidAmount: Number(paidAmount) || 0,
             enrollmentFee: Number(enrollmentFee) || 0,
             taxAmount: Number(taxAmount) || 0,
             dueAmount: Number(dueAmount) || 0,
             discountType: discountType || undefined,
-            discountValue:Number(discountValue)|| 0,
-            status: Number(dueAmount) > 0 ? (Number(paidAmount) > 0 ? 'partial' : 'pending') : 'paid',
+            discountValue: Number(discountValue) || 0,
+            status:
+              Number(dueAmount) > 0
+                ? Number(paidAmount) > 0
+                  ? "partial"
+                  : "pending"
+                : "paid",
             billDate: new Date(),
             createdBy: user._id,
             rootAdmin: rootAdminId,
@@ -153,20 +167,22 @@ exports.addMember = async (req, res) => {
         }
       }
 
-      const populated = await Member.findById(member._id).populate('currentPlan');
+      const populated = await Member.findById(member._id).populate(
+        "currentPlan",
+      );
 
       res.status(201).json({
         success: true,
-        message: 'Member added successfully',
+        message: "Member added successfully",
         member: populated,
         billingCreated: !!billing,
       });
     });
   } catch (err) {
-    console.error('Add Member Error:', err);
+    console.error("Add Member Error:", err);
     res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: "Server error",
       error: err.message,
     });
   }
@@ -184,7 +200,9 @@ exports.freezeMember = async (req, res) => {
 
     // 1. Validate input
     if (!freezeStartDate || isNaN(new Date(freezeStartDate).getTime())) {
-      return res.status(400).json({ message: 'Valid freeze start date is required (YYYY-MM-DD)' });
+      return res
+        .status(400)
+        .json({ message: "Valid freeze start date is required (YYYY-MM-DD)" });
     }
 
     const startDate = new Date(freezeStartDate);
@@ -194,25 +212,34 @@ exports.freezeMember = async (req, res) => {
     today.setHours(0, 0, 0, 0);
 
     if (startDate < today) {
-      return res.status(400).json({ message: 'Freeze start date cannot be in the past' });
+      return res
+        .status(400)
+        .json({ message: "Freeze start date cannot be in the past" });
     }
 
-    const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId });
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+    const member = await Member.findOne({
+      _id: req.params.id,
+      rootAdmin: rootAdminId,
+    });
+    if (!member) return res.status(404).json({ message: "Member not found" });
 
     // 2. Already frozen?
-    if (member.status === 'freeze') {
-      return res.status(400).json({ message: 'Member is already frozen. Please unfreeze first.' });
+    if (member.status === "freeze") {
+      return res
+        .status(400)
+        .json({ message: "Member is already frozen. Please unfreeze first." });
     }
 
     // 3. No active plan/expiry?
     if (!member.planExpiryDate) {
-      return res.status(400).json({ message: 'Member has no active plan to freeze' });
+      return res
+        .status(400)
+        .json({ message: "Member has no active plan to freeze" });
     }
 
     // 4. Set freeze state
     member.freezeStartDate = startDate;
-    member.status = 'freeze';
+    member.status = "freeze";
 
     // 5. Add to history
     member.freezeHistory.push({
@@ -229,12 +256,14 @@ exports.freezeMember = async (req, res) => {
       member,
     });
   } catch (err) {
-    console.error('Freeze Member Error:', err);
-    if (err.name === 'ValidationError') {
-      const errors = Object.values(err.errors).map(e => e.message).join(', ');
+    console.error("Freeze Member Error:", err);
+    if (err.name === "ValidationError") {
+      const errors = Object.values(err.errors)
+        .map((e) => e.message)
+        .join(", ");
       return res.status(400).json({ message: `Validation failed: ${errors}` });
     }
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 };
 // ──────────────────────────────────────────────
@@ -245,15 +274,20 @@ exports.unfreezeMember = async (req, res) => {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
 
-    const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId });
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+    const member = await Member.findOne({
+      _id: req.params.id,
+      rootAdmin: rootAdminId,
+    });
+    if (!member) return res.status(404).json({ message: "Member not found" });
 
-    if (member.status !== 'freeze') {
-      return res.status(400).json({ message: 'Member is not frozen' });
+    if (member.status !== "freeze") {
+      return res.status(400).json({ message: "Member is not frozen" });
     }
 
     if (!member.freezeStartDate) {
-      return res.status(400).json({ message: 'Invalid freeze state - no start date found' });
+      return res
+        .status(400)
+        .json({ message: "Invalid freeze state - no start date found" });
     }
 
     const freezeStart = new Date(member.freezeStartDate);
@@ -267,7 +301,8 @@ exports.unfreezeMember = async (req, res) => {
 
     if (today <= freezeStart) {
       // Case 1: Unfreeze BEFORE or ON start date → no extension, cancel freeze
-      message = 'Member unfrozen - freeze period had not started or just started today. No extension applied.';
+      message =
+        "Member unfrozen - freeze period had not started or just started today. No extension applied.";
     } else {
       // Case 2: Normal unfreeze AFTER start date → calculate days & extend
       const diffTime = today - freezeStart;
@@ -283,8 +318,10 @@ exports.unfreezeMember = async (req, res) => {
         extensionApplied = true;
       }
 
-      message = `Member unfrozen after ${frozenDays} day${frozenDays === 1 ? '' : 's'}. ${
-        extensionApplied ? `Expiry extended to ${newExpiry.toLocaleDateString()}.` : 'No extension needed (freeze period too short).'
+      message = `Member unfrozen after ${frozenDays} day${frozenDays === 1 ? "" : "s"}. ${
+        extensionApplied
+          ? `Expiry extended to ${newExpiry.toLocaleDateString()}.`
+          : "No extension needed (freeze period too short)."
       }`;
     }
 
@@ -298,7 +335,7 @@ exports.unfreezeMember = async (req, res) => {
 
     // Clear current freeze state
     member.freezeStartDate = null;
-    member.status = 'active';
+    member.status = "active";
 
     await member.save();
 
@@ -308,12 +345,14 @@ exports.unfreezeMember = async (req, res) => {
       member,
     });
   } catch (err) {
-    console.error('Unfreeze Member Error:', err);
-    if (err.name === 'ValidationError') {
-      const errors = Object.values(err.errors).map(e => e.message).join(', ');
+    console.error("Unfreeze Member Error:", err);
+    if (err.name === "ValidationError") {
+      const errors = Object.values(err.errors)
+        .map((e) => e.message)
+        .join(", ");
       return res.status(400).json({ message: `Validation failed: ${errors}` });
     }
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 };
 // ... rest of your controller remains unchanged ...// ──────────────────────────────────────────────────────────────────────────────
@@ -321,31 +360,31 @@ exports.unfreezeMember = async (req, res) => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 const getStatusFilter = (category) => {
-  category = (category || '').toLowerCase().trim();
+  category = (category || "").toLowerCase().trim();
 
-  if (!category || category === 'total') return {};
+  if (!category || category === "total") return {};
 
-  if (category === 'live' || category === 'active') return { status: 'active' };
-  if (category === 'blocked') return { status: 'blocked' };
-  if (category === 'left') return { status: 'left' };
-  if (category === 'freeze') return { status: 'freeze' };
-  if (category === 'expired') return { membershipStatus: 'expired' };
+  if (category === "live" || category === "active") return { status: "active" };
+  if (category === "blocked") return { status: "blocked" };
+  if (category === "left") return { status: "left" };
+  if (category === "freeze") return { status: "freeze" };
+  if (category === "expired") return { membershipStatus: "expired" };
 
   // Expiring ranges
   const now = new Date();
   let minDate, maxDate;
 
-  if (category === 'expiring1-3') {
+  if (category === "expiring1-3") {
     minDate = new Date(now);
     minDate.setDate(now.getDate() + 1);
     maxDate = new Date(now);
     maxDate.setDate(now.getDate() + 3);
-  } else if (category === 'expiring4-7') {
+  } else if (category === "expiring4-7") {
     minDate = new Date(now);
     minDate.setDate(now.getDate() + 4);
     maxDate = new Date(now);
     maxDate.setDate(now.getDate() + 7);
-  } else if (category === 'expiring8-15') {
+  } else if (category === "expiring8-15") {
     minDate = new Date(now);
     minDate.setDate(now.getDate() + 8);
     maxDate = new Date(now);
@@ -354,7 +393,7 @@ const getStatusFilter = (category) => {
 
   if (minDate && maxDate) {
     return {
-      membershipStatus: 'active',
+      membershipStatus: "active",
       planExpiryDate: { $gte: minDate, $lte: maxDate },
     };
   }
@@ -362,40 +401,62 @@ const getStatusFilter = (category) => {
   return {};
 };
 
-
 exports.getMemberCounts = async (req, res) => {
   try {
     //console.log("here is the pin")
     const user = req.user;
-    if (!user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!user)
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     //console.log("value of  user ", user);
     const rootAdminId = getRootAdminId(user);
     //console.log("value of ", rootAdminId);
+
+    // === NEW: Auto-update expired members ===
+     const check = await Member.updateMany(
+      {
+        rootAdmin: rootAdminId,
+        membershipStatus: "active", // Only update if currently active
+        planExpiryDate: { $lt: new Date() }, // Expiry date has passed
+        status: { $ne: "delete" }, // Don't touch deleted members
+      },
+      {
+        $set: {
+          membershipStatus: "expired",
+        },
+      },
+    );
+    if(check) console.log("data change ", check);
     const stats = await Member.aggregate([
       {
         $match: {
-          
           rootAdmin: rootAdminId,
         },
       },
       {
         $group: {
           _id: null,
-          total: { $sum: { $cond: [{ $ne: ['$status', 'delete'] }, 1, 0] } },
-          live: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
-          blocked: { $sum: { $cond: [{ $eq: ['$status', 'blocked'] }, 1, 0] } },
-          left: { $sum: { $cond: [{ $eq: ['$status', 'delete'] }, 1, 0] } },
-          expired: { $sum: { $cond: [{ $eq: ['$status', 'expired'] }, 1, 0] } },
-          freeze: { $sum: { $cond: [{ $eq: ['$status', 'freeze'] }, 1, 0] } },
+          total: { $sum: { $cond: [{ $ne: ["$status", "delete"] }, 1, 0] } },
+          live: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } },
+          blocked: { $sum: { $cond: [{ $eq: ["$status", "blocked"] }, 1, 0] } },
+          left: { $sum: { $cond: [{ $eq: ["$status", "delete"] }, 1, 0] } }, // change the left option by delete option.
+          expired: {
+            $sum: { $cond: [{ $eq: ["$membershipStatus", "expired"] }, 1, 0] },
+          },
+          freeze: { $sum: { $cond: [{ $eq: ["$status", "freeze"] }, 1, 0] } },
 
           expiring1_3: {
             $sum: {
               $cond: [
                 {
                   $and: [
-                    { $ne: ['$planExpiryDate', null] },
-                    { $lte: ['$planExpiryDate', new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)] },
-                    { $gt: ['$planExpiryDate', new Date()] },
+                    { $ne: ["$planExpiryDate", null] },
+                    {
+                      $lte: [
+                        "$planExpiryDate",
+                        new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+                      ],
+                    },
+                    { $gt: ["$planExpiryDate", new Date()] },
                   ],
                 },
                 1,
@@ -408,9 +469,19 @@ exports.getMemberCounts = async (req, res) => {
               $cond: [
                 {
                   $and: [
-                    { $ne: ['$planExpiryDate', null] },
-                    { $lte: ['$planExpiryDate', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)] },
-                    { $gt: ['$planExpiryDate', new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)] },
+                    { $ne: ["$planExpiryDate", null] },
+                    {
+                      $lte: [
+                        "$planExpiryDate",
+                        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                      ],
+                    },
+                    {
+                      $gt: [
+                        "$planExpiryDate",
+                        new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
+                      ],
+                    },
                   ],
                 },
                 1,
@@ -423,9 +494,19 @@ exports.getMemberCounts = async (req, res) => {
               $cond: [
                 {
                   $and: [
-                    { $ne: ['$planExpiryDate', null] },
-                    { $lte: ['$planExpiryDate', new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)] },
-                    { $gt: ['$planExpiryDate', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)] },
+                    { $ne: ["$planExpiryDate", null] },
+                    {
+                      $lte: [
+                        "$planExpiryDate",
+                        new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+                      ],
+                    },
+                    {
+                      $gt: [
+                        "$planExpiryDate",
+                        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                      ],
+                    },
                   ],
                 },
                 1,
@@ -450,7 +531,7 @@ exports.getMemberCounts = async (req, res) => {
         },
       },
     ]);
-    // //console.log("value of stats", stats)
+    console.log("value of stats", stats[0]);
     const counts = stats[0] || {
       total: 0,
       live: 0,
@@ -468,8 +549,8 @@ exports.getMemberCounts = async (req, res) => {
       counts,
     });
   } catch (err) {
-    console.error('getMemberCounts error:', err.message);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error("getMemberCounts error:", err.message);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -480,19 +561,20 @@ exports.getMembersByCategory = async (req, res) => {
   try {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
-    console.log(req.user.category);
+
     const { category } = req.query;
+    console.log(category);
     const statusFilter = getStatusFilter(category);
     const filter = { ...statusFilter, rootAdmin: rootAdminId };
 
-    const members = await Member.find(filter)
-      .sort({ createdAt: -1 })
-      .lean();
-
+    const members = await Member.find(filter).sort({ createdAt: -1 }).lean();
+    if (category == "expired") {
+      console.log("members", members);
+    }
     res.json(members);
   } catch (err) {
-    console.error('getMembersByCategory Error:', err);
-    res.status(500).json({ message: 'Server error while fetching members' });
+    console.error("getMembersByCategory Error:", err);
+    res.status(500).json({ message: "Server error while fetching members" });
   }
 };
 
@@ -504,14 +586,17 @@ exports.getAllMembers = async (req, res) => {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
 
-    const members = await Member.find({ rootAdmin: rootAdminId ,status : {$ne:'delete'}})
+    const members = await Member.find({
+      rootAdmin: rootAdminId,
+      status: { $ne: "delete" },
+    })
       .sort({ createdAt: -1 })
       .lean();
 
     res.json(members);
   } catch (err) {
-    console.error('getAllMembers Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("getAllMembers Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -520,17 +605,21 @@ exports.getMemberById = async (req, res) => {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
 
-    const member = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId,status : {$ne:'delete'} })
-      .populate('seat')
-      .populate('currentPlan')
+    const member = await Member.findOne({
+      _id: req.params.id,
+      rootAdmin: rootAdminId,
+      status: { $ne: "delete" },
+    })
+      .populate("seat")
+      .populate("currentPlan")
       .lean();
 
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+    if (!member) return res.status(404).json({ message: "Member not found" });
 
     res.json(member);
   } catch (err) {
-    console.error('getMemberById Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("getMemberById Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -542,15 +631,15 @@ exports.editMember = async (req, res) => {
     const member = await Member.findOneAndUpdate(
       { _id: req.params.id, rootAdmin: rootAdminId },
       { $set: req.body },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+    if (!member) return res.status(404).json({ message: "Member not found" });
 
     res.json(member);
   } catch (err) {
-    console.error('editMember Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("editMember Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -563,54 +652,62 @@ const updateStatus = async (req, res, newStatus) => {
     const member = await Member.findOneAndUpdate(
       { _id: req.params.id, rootAdmin: rootAdminId },
       { status: newStatus },
-      { new: true }
+      { new: true },
     );
 
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+    if (!member) return res.status(404).json({ message: "Member not found" });
 
     res.json({ message: `Member ${newStatus}`, member });
   } catch (err) {
-    console.error('updateStatus Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("updateStatus Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-exports.blockMember   = (req, res) => updateStatus(req, res, 'blocked');
-exports.unblockMember = (req, res) => updateStatus(req, res, 'active');
+exports.blockMember = (req, res) => updateStatus(req, res, "blocked");
+exports.unblockMember = (req, res) => updateStatus(req, res, "active");
 
-exports.markLeft      = (req, res) => updateStatus(req, res, 'left');
+exports.markLeft = (req, res) => updateStatus(req, res, "left");
 
 // exports.markDelete = (req,res)=>updateStatus(req,res,'delete')
 
 exports.deleteId = async (req, res) => {
-   try {
+  try {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
-   
-    const userfound = await Member.findOne({ _id: req.params.id, rootAdmin: rootAdminId });
-    if (!userfound) return res.status(404).json({ message: 'Member not found' });
-    const dueAmount = await Billing.findOne({ member:req.params.id , rootAdmin:rootAdminId,status:{$ne:'paid'}})
-    
-    if(dueAmount){
-    return res.status(409).json({ 
-        success: false, 
-        message: 'Please clear due amount' 
+
+    const userfound = await Member.findOne({
+      _id: req.params.id,
+      rootAdmin: rootAdminId,
+    });
+    if (!userfound)
+      return res.status(404).json({ message: "Member not found" });
+    const dueAmount = await Billing.findOne({
+      member: req.params.id,
+      rootAdmin: rootAdminId,
+      status: { $ne: "paid" },
+    });
+
+    if (dueAmount) {
+      return res.status(409).json({
+        success: false,
+        message: "Please clear due amount",
       });
     }
-    
-   const member=await Member.findOneAndUpdate(
+
+    const member = await Member.findOneAndUpdate(
       { _id: req.params.id, rootAdmin: rootAdminId },
-      { status: 'delete' },
-      { new: true });
-    x
-    
+      { status: "delete" },
+      { new: true },
+    );
+    x;
 
     res.json({ message: `Member Deleted successfully`, member });
   } catch (err) {
-    console.error('updateStatus Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("updateStatus Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
-}
+};
 
 exports.markExpired = async (req, res) => {
   try {
@@ -623,16 +720,19 @@ exports.markExpired = async (req, res) => {
     const result = await Member.updateMany(
       {
         rootAdmin: rootAdminId,
-        membershipStatus: 'active',
-        planExpiryDate: { $lt: today }
+        membershipStatus: "active",
+        planExpiryDate: { $lt: today },
       },
-      { $set: { membershipStatus: 'expired' } }
+      { $set: { membershipStatus: "expired" } },
     );
 
-    res.json({ message: 'Expired members updated', modifiedCount: result.modifiedCount });
+    res.json({
+      message: "Expired members updated",
+      modifiedCount: result.modifiedCount,
+    });
   } catch (err) {
-    console.error('markExpired Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("markExpired Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -640,40 +740,44 @@ exports.searchMembers = async (req, res) => {
   try {
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
-    
-    const { query,limit} = req.query;
-    console.log("data ",query)
+
+    const { query, limit } = req.query;
+    console.log("data ", query);
     if (!query?.trim()) {
       return res.json([]);
     }
 
     const members = await Member.find({
       rootAdmin: rootAdminId,
-      status : {$ne:'delete'},
+      status: { $ne: "delete" },
       $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { mobile: { $regex: query, $options: 'i' } },
-        { uniqueId: { $regex: query, $options: 'i' } }
-      ]
-    }).select('name memberId mobile status').limit(limit).lean();
-    console.log(members,"details");
+        { name: { $regex: query, $options: "i" } },
+        { mobile: { $regex: query, $options: "i" } },
+        { uniqueId: { $regex: query, $options: "i" } },
+      ],
+    })
+      .select("name memberId mobile status")
+      .limit(limit)
+      .lean();
+    console.log(members, "details");
     res.json(members);
   } catch (err) {
-    console.error('searchMembers Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("searchMembers Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
 exports.getNextMemberId = async (req, res) => {
   try {
     const user = req.user;
-    if (!user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!user)
+      return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const rootAdminId = getRootAdminId(user);
 
     const lastMember = await Member.findOne({ rootAdmin: rootAdminId })
       .sort({ memberId: -1 })
-      .select('memberId')
+      .select("memberId")
       .lean();
 
     //console.log("Last member found:", lastMember);
@@ -687,28 +791,30 @@ exports.getNextMemberId = async (req, res) => {
       }
     }
 
-    const nextId = `MEM-${nextNumber.toString().padStart(4, '0')}`;
+    const nextId = `MEM-${nextNumber.toString().padStart(4, "0")}`;
 
     // Safety check for rare race conditions
-    const alreadyExists = await Member.findOne({ 
-      memberId: nextId, 
-      rootAdmin: rootAdminId 
+    const alreadyExists = await Member.findOne({
+      memberId: nextId,
+      rootAdmin: rootAdminId,
     });
 
     if (alreadyExists) {
-      console.warn(`Race condition detected: ${nextId} already exists for admin ${rootAdminId}`);
-      return res.status(409).json({ 
-        success: false, 
-        message: 'Temporary ID conflict - please try again' 
+      console.warn(
+        `Race condition detected: ${nextId} already exists for admin ${rootAdminId}`,
+      );
+      return res.status(409).json({
+        success: false,
+        message: "Temporary ID conflict - please try again",
       });
     }
 
     res.json({ success: true, nextMemberId: nextId });
   } catch (err) {
-    console.error('Error generating next memberId:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to generate member ID' 
+    console.error("Error generating next memberId:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate member ID",
     });
   }
 };
@@ -721,7 +827,7 @@ exports.getNextMemberId = async (req, res) => {
 exports.getDueMembers = async (req, res) => {
   try {
     const user = req.user;
-    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     const rootAdminId = getRootAdminId(user);
 
@@ -729,16 +835,16 @@ exports.getDueMembers = async (req, res) => {
     const dueBillings = await Billing.find({
       rootAdmin: rootAdminId,
       dueAmount: { $gt: 0 },
-      status: { $in: ['pending', 'partial', 'overdue'] },
+      status: { $in: ["pending", "partial", "overdue"] },
     })
       .populate({
-        path: 'member',
-        select: 'memberId name mobile status lastDueAmount',
-        match: { status: { $ne: 'delete' } }
+        path: "member",
+        select: "memberId name mobile status lastDueAmount",
+        match: { status: { $ne: "delete" } },
       })
       .populate({
-        path: 'plan',
-        select: 'name amount duration',
+        path: "plan",
+        select: "name amount duration",
       })
       .sort({ dueAmount: -1, billDate: -1 })
       .lean();
@@ -768,27 +874,28 @@ exports.getDueMembers = async (req, res) => {
 
       memberEntry.billings.push({
         _id: billing._id,
-        planName: billing.plan?.name || 'Unknown Plan',
+        planName: billing.plan?.name || "Unknown Plan",
         dueAmount: billing.dueAmount,
         paidAmount: billing.paidAmount,
         billDate: billing.billDate,
         status: billing.status,
-        remarks: billing.remarks || '',
+        remarks: billing.remarks || "",
       });
 
       memberEntry.totalDue += billing.dueAmount;
     });
 
     // Step 3: Convert map to array + sort by total due descending
-    const dueMembers = Array.from(membersMap.values())
-      .sort((a, b) => b.totalDue - a.totalDue);
+    const dueMembers = Array.from(membersMap.values()).sort(
+      (a, b) => b.totalDue - a.totalDue,
+    );
 
     // Step 4: Update each member's lastDueAmount (optional, for consistency)
     for (const member of dueMembers) {
       await Member.findByIdAndUpdate(
         member._id,
         { lastDueAmount: member.totalDue },
-        { new: true }
+        { new: true },
       );
     }
 
@@ -799,12 +906,11 @@ exports.getDueMembers = async (req, res) => {
       members: dueMembers,
     });
   } catch (err) {
-    console.error('Get Due Members Error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("Get Due Members Error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-exports.
-stats = async (req, res) => {
+exports.stats = async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -825,41 +931,42 @@ stats = async (req, res) => {
       // Live (active) - planExpiryDate >= today
       Member.countDocuments({
         planExpiryDate: { $gte: today },
-        status: { $nin: ['blocked', 'left', 'freeze','delete'] }, // adjust status values as per your schema
+        status: { $nin: ["blocked", "left", "freeze", "delete"] }, // adjust status values as per your schema
       }),
 
       // Expired - planExpiryDate < today
       Member.countDocuments({
         planExpiryDate: { $lt: today },
-        status: { $nin: ['blocked', 'left', 'freeze','delete'] },
+        status: { $nin: ["blocked", "left", "freeze", "delete"] },
       }),
 
       // Expiring 1-3 days
       Member.countDocuments({
         planExpiryDate: getExpiringRange(1, 3),
-        status: { $nin: ['blocked', 'left', 'freeze','delete'] },
+        status: { $nin: ["blocked", "left", "freeze", "delete"] },
       }),
 
       // Expiring 4-7 days
       Member.countDocuments({
         planExpiryDate: getExpiringRange(4, 7),
-        status: { $nin: ['blocked', 'left', 'freeze','delete'] },
+        status: { $nin: ["blocked", "left", "freeze", "delete"] },
+        membershipStatus: {},
       }),
 
       // Expiring 8-15 days
       Member.countDocuments({
         planExpiryDate: getExpiringRange(8, 15),
-        status: { $nin: ['blocked', 'left', 'freeze','delete'] },
+        status: { $nin: ["blocked", "left", "freeze", "delete"] },
       }),
 
       // Blocked
-      Member.countDocuments({ status: 'blocked' }),
+      Member.countDocuments({ status: "blocked" }),
 
       // Left
-      Member.countDocuments({ status: 'left' }),
+      Member.countDocuments({ status: "left" }),
 
       // Freeze
-      Member.countDocuments({ status: 'freeze' }),
+      Member.countDocuments({ status: "freeze" }),
     ]);
 
     const [
@@ -889,11 +996,11 @@ stats = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching member stats:', error);
+    console.error("Error fetching member stats:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch member statistics',
+      message: "Failed to fetch member statistics",
       error: error.message,
     });
   }
-}
+};

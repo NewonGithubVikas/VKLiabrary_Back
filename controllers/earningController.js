@@ -14,7 +14,7 @@ exports.getEarningSummary = async (req, res) => {
     const rootAdminId = getRootAdminId(user);
 
     // Get requested range from query param (default = week)
-    const range = (req.query.range || "thisWeek").toLowerCase();
+    const range = (req.query.range || "week").toLowerCase();
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -36,7 +36,7 @@ exports.getEarningSummary = async (req, res) => {
         endDate.setHours(23, 59, 59, 999);
         break;
 
-      case "thisweek":
+      case "week":
         startDate = new Date(today);
         startDate.setDate(today.getDate() - today.getDay()); // Sunday start
         break;
@@ -86,7 +86,7 @@ exports.getEarningSummary = async (req, res) => {
       default:
         return res.status(400).json({
           message:
-            "Invalid range. Use: today, yesterday, thisWeek, thisMonth, lastMonth, last3Months",
+            "Invalid range. Use: today, yesterday, Week, thisMonth, lastMonth, last3Months",
         });
     }
 
