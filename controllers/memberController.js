@@ -436,7 +436,7 @@ exports.getMemberCounts = async (req, res) => {
         $group: {
           _id: null,
           total: { $sum: { $cond: [{ $ne: ["$status", "delete"] }, 1, 0] } },
-          live: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } },
+          live: { $sum: { $cond: [{$and:[{$ne: ["$membershipStatus", "expired"]},{ $eq: ["$status", "active"]}] }, 1, 0] } },
           blocked: { $sum: { $cond: [{ $eq: ["$status", "blocked"] }, 1, 0] } },
           left: { $sum: { $cond: [{ $eq: ["$status", "delete"] }, 1, 0] } }, // change the left option by delete option.
           expired: {
