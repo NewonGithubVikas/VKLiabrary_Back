@@ -294,3 +294,136 @@ exports.repayDueAmount = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+// ──────────────────────────────────────────────
+// UPDATE / EDIT BILLING (Invoice)
+// ──────────────────────────────────────────────
+exports.  updateBilling = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const rootAdminId = getRootAdminId(user);
+    const { id: billingId } = req.params;
+
+    const {
+      billDate,
+      startDate,
+      endDate,
+      plan,           // plan ID (optional)
+      amount,         // manual override amount
+      discountType,
+      discountValue,
+      paidAmount,
+      taxApplicable,
+      taxAmount,
+      remarks,
+      paymentMethod
+    } = req.body;
+
+    // Find billing
+    const billing = await Billing.findOne({
+      _id: billingId,
+      rootAdmin: rootAdminId,
+    });
+
+    if (!billing) {
+      return res.status(404).json({ message: 'Billing record not found or unauthorized' });
+    }
+
+    // Check if plan is expired
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const planEndDate = new Date(billing.endDate);
+    if (planEndDate < today) {
+      return res.status(400).json({
+        message: 'Cannot edit this invoice. The plan has already expired.'
+      });
+    }
+
+    // Optional: Re-validate and fetch plan if plan ID is changed
+    let planDoc = null;
+    if (plan) {
+      planDoc = await Plan.findOne({ _id: plan, rootAdmin: rootAdminId });
+      if (!planDoc) return res.status(404).json({ message: 'Plan not found' });
+    }
+
+    // Update fields
+    if (billDate) billing.billDate = billDate;
+    if (startDate) billing.startDate = startDate;
+    if (endDate) billing.endDate = endDate;
+    if (plan) billing.plan = plan;
+    if (paymentMethod) billing.paymentMethod = paymentMethod;
+
+    // Recalculate totals
+    const baseAmount = amount !== undefined ? Number(amount) : (planDoc ? planDoc.amount : billing.plan?.amount || 0);
+    const enrollment = planDoc ? (planDoc.enrollmentFee || 0) : 0;
+
+    const totalBeforeDiscount = baseAmount + enrollment;
+
+    let discount = 0;
+    if (discountType && discountValue) {
+      if (discountType === 'percentage') {
+        discount = (totalBeforeDiscount * Number(discountValue)) / 100;
+      } else if (discountType === 'flat') {
+        discount = Number(discountValue);
+      }
+    }
+
+    const finalTax = taxApplicable ? Number(taxAmount || 0) : 0;
+    const totalPayable = totalBeforeDiscount - discount + finalTax;
+
+    const newPaidAmount = paidAmount !== undefined ? Number(paidAmount) : billing.paidAmount;
+    const newDueAmount = totalPayable - newPaidAmount;
+
+    // Update billing fields
+    billing.paidAmount = newPaidAmount;
+    billing.dueAmount = Math.max(0, newDueAmount);
+    billing.discountType = discountType;
+    billing.discountValue = discountValue || 0;
+    billing.taxApplicable = taxApplicable !== undefined ? taxApplicable : billing.taxApplicable;
+    billing.taxAmount = finalTax;
+    billing.remarks = remarks !== undefined ? remarks : billing.remarks;
+
+    // Update status
+    if (billing.dueAmount <= 0) {
+      billing.status = 'paid';
+    } else if (billing.paidAmount > 0) {
+      billing.status = 'partial';
+    } else {
+      billing.status = 'pending';
+    }
+
+    await billing.save();
+
+    // Optionally update member info if this is the current plan
+    if (billing.member) {
+      await Member.findByIdAndUpdate(
+        billing.member,
+        {
+          planStartDate: billing.startDate,
+          planExpiryDate: billing.endDate,
+          lastPaidAmount: billing.paidAmount,
+          lastDueAmount: billing.dueAmount,
+          lastPlanAmount: baseAmount,
+        },
+        { new: true }
+      );
+    }
+
+    const updatedBilling = await Billing.findById(billingId)
+      .populate('member', 'name mobile')
+      .populate('plan', 'name amount duration');
+
+    res.json({
+      success: true,
+      message: 'Invoice updated successfully',
+      data: updatedBilling,
+    });
+
+  } catch (err) {
+    console.error('Update Billing Error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};

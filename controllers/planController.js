@@ -72,13 +72,17 @@ exports.disablePlan = async (req, res) => {
 
 exports.getPlans = async (req, res) => {
   try {
+
     const user = req.user;
     const rootAdminId = getRootAdminId(user);
-
+    console.log('check 1');
     const plans = await Plan.find({ rootAdmin: rootAdminId })
       .sort({ createdAt: -1 });
+
+     console.log('check 2',plans);
     res.json(plans);
   } catch (err) {
+     console.log('check 3');
     res.status(500).json({ message: 'Server error' });
   }
 };
