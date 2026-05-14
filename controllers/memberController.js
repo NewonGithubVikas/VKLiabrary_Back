@@ -364,7 +364,12 @@ const getStatusFilter = (category) => {
 
   if (!category || category === "total") return {};
 
-  if (category === "live" || category === "active") return { status: "active" };
+  if (category === "live" || category === "active") {
+    return {
+      status: "active",
+      membershipStatus: { $ne: "expired" }   
+    };
+  }
   if (category === "blocked") return { status: "blocked" };
   if (category === "left") return { status: "left" };
   if (category === "freeze") return { status: "freeze" };
