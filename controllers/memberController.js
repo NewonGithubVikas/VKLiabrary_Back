@@ -586,6 +586,47 @@ exports.getMembersByCategory = async (req, res) => {
 // ──────────────────────────────────────────────
 // GET ALL MEMBERS (keep for full list)
 // ──────────────────────────────────────────────
+// exports.getAllMembers = async (req, res) => {
+//   try {
+//     const user = req.user;
+//     const rootAdminId = getRootAdminId(user);
+
+//     const members = await Member.find({
+//       rootAdmin: rootAdminId,
+//       status: { $ne: "delete" },
+//     })
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     res.json(members);
+//   } catch (err) {
+//     console.error("getAllMembers Error:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// exports.getAllMembers = async (req, res) => {
+//   try {
+//     const user = req.user;
+//     const rootAdminId = getRootAdminId(user);
+
+//     const members = await Member.find({
+//       rootAdmin: rootAdminId,
+//       status: { $ne: "delete" },
+//     })
+//       .populate({
+//         path: "currentPlan",
+//         select: "name type duration amount enrollmentFee enabled",
+//       })
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     res.json(members);
+//   } catch (err) {
+//     console.error("getAllMembers Error:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
 exports.getAllMembers = async (req, res) => {
   try {
     const user = req.user;
@@ -595,6 +636,28 @@ exports.getAllMembers = async (req, res) => {
       rootAdmin: rootAdminId,
       status: { $ne: "delete" },
     })
+      .select(
+      `
+        _id
+        memberId
+        name
+        mobile
+        address
+        profilePhoto
+        status
+        planStartDate
+        planExpiryDate
+        lastPlanAmount
+        lastPaidAmount
+        lastDueAmount
+        currentPlan
+        createdAt
+        `
+      )
+      .populate({
+        path: "currentPlan",
+        select: "name type -_id",
+      })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -1008,4 +1071,4 @@ exports.stats = async (req, res) => {
       error: error.message,
     });
   }
-};
+}
