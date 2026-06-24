@@ -572,7 +572,29 @@ exports.getMembersByCategory = async (req, res) => {
     const statusFilter = getStatusFilter(category);
     const filter = { ...statusFilter, rootAdmin: rootAdminId };
 
-    const members = await Member.find(filter).sort({ createdAt: -1 }).lean();
+    const members = await Member.find(filter).select(
+      ` _id
+        memberId
+        name
+        mobile
+        address
+        profilePhoto
+        status
+        planStartDate
+        planExpiryDate
+        lastPlanAmount
+        lastPaidAmount
+        lastDueAmount
+        currentPlan
+        createdAt
+        `
+      )
+      .populate({
+        path: "currentPlan",
+        select: "name type -_id",
+      })
+      .sort({ createdAt: -1 })
+      .lean();
     if (category == "expired") {
       console.log("members", members);
     }
@@ -637,8 +659,7 @@ exports.getAllMembers = async (req, res) => {
       status: { $ne: "delete" },
     })
       .select(
-      `
-        _id
+      ` _id
         memberId
         name
         mobile
